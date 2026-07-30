@@ -21,6 +21,7 @@ import {
   getStorybookStoryInstructionsToolMetadata,
   addGetUIBuildingInstructionsTool,
 } from './get-storybook-story-instructions.ts';
+import { MCP_TOOL_NAMES } from 'storybook/open-service';
 import { resolveReviewOrigin } from './review-origin.ts';
 import {
   getToolsetToolMetadata,
@@ -103,7 +104,9 @@ function fromToolset(
   const { options, available, ...rest } = definition;
   return {
     ...rest,
-    name: getToolsetToolMetadata(options).name,
+    // Read from the constant, not the registry: this array is built at import time, while toolsets
+    // register later from their preset hooks.
+    name: MCP_TOOL_NAMES[options.method],
     available: (context) =>
       isToolsetMethodAvailable(options.method) && (available?.(context) ?? true),
     getMetadata: () => getToolsetToolMetadata(options),
