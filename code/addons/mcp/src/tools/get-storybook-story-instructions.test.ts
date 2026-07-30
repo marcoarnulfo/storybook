@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { McpServer } from 'tmcp';
 import { ValibotJsonSchemaAdapter } from '@tmcp/adapter-valibot';
-import { getAddonVitestConstants } from './run-story-tests.ts';
+import { getAddonVitestConstants } from '../utils/addon-vitest.ts';
 import {
   addGetUIBuildingInstructionsTool,
   buildStorybookStoryInstructions,
@@ -14,7 +14,7 @@ import {
   GET_UI_BUILDING_INSTRUCTIONS_TOOL_NAME,
 } from './tool-names.ts';
 
-vi.mock('./run-story-tests.ts', () => ({
+vi.mock('../utils/addon-vitest.ts', () => ({
   getAddonVitestConstants: vi.fn(),
 }));
 

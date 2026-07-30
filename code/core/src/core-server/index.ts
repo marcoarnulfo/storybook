@@ -70,6 +70,13 @@ export type {
   CreateTestToolsetOptions,
   TestToolset,
 } from '../shared/open-service/toolsets/test/definition.ts';
+export { createDocsToolset } from '../shared/open-service/toolsets/docs/definition.ts';
+export type { DocsAccess, ResolvedDocsEntry } from '../shared/open-service/toolsets/docs/access.ts';
+export { createServiceDocsAccess } from '../shared/open-service/toolsets/docs/access-service.ts';
+export { createManifestDocsAccess } from '../shared/open-service/toolsets/docs/access-manifest.ts';
+export { createMultiSourceDocsAccess } from '../shared/open-service/toolsets/docs/access-multi-source.ts';
+export { createStoriesToolset } from '../shared/open-service/toolsets/stories/definition.ts';
+export { reviewToolset } from '../shared/open-service/toolsets/review/definition.ts';
 
 export { UniversalStore as experimental_UniversalStore } from '../shared/universal-store/index.ts';
 export { MockUniversalStore as experimental_MockUniversalStore } from '../shared/universal-store/mock.ts';

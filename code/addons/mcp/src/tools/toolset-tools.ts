@@ -13,7 +13,6 @@ import {
   MCP_TOOL_NAMES,
   MCP_TOOL_TITLES,
   getToolset,
-  hasToolset,
   resolveToolsetDescription,
   type ToolsetCtx,
   type ToolsetMethod,
@@ -44,15 +43,6 @@ export type ToolsetToolOptions = {
    */
   resolveOrigin?: (server: Server) => string | undefined;
 };
-
-function toolsetIdOf(method: ToolsetMethodRef): string {
-  return method.split('.')[0];
-}
-
-/** Whether the toolset backing a tool is registered in this Storybook. */
-export function isToolsetMethodAvailable(method: ToolsetMethodRef): boolean {
-  return hasToolset(toolsetIdOf(method));
-}
 
 function resolveMethod(method: ToolsetMethodRef): ToolsetMethod<any, any> {
   const [toolsetId, methodName] = method.split('.');

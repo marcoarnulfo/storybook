@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Options } from 'storybook/internal/types';
 import { experimental_devServer } from './preset.ts';
 import * as mcpHandlerModule from './mcp-handler.ts';
-import * as runStoryTests from './tools/run-story-tests.ts';
+import * as runStoryTests from './utils/addon-vitest.ts';
 import * as moduleGraph from './utils/module-graph.ts';
+import { registerCoreToolsetsForTest } from './tools/toolset-fixtures.ts';
 
 describe('experimental_devServer', () => {
   let mockApp: any;
@@ -11,6 +12,8 @@ describe('experimental_devServer', () => {
   let mcpHandler: any;
 
   beforeEach(() => {
+    // The `services` preset hook does this in a real Storybook before the dev server mounts /mcp.
+    registerCoreToolsetsForTest();
     vi.restoreAllMocks();
 
     mockApp = {

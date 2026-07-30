@@ -25,7 +25,6 @@ import { MCP_TOOL_NAMES } from 'storybook/open-service';
 import { resolveReviewOrigin } from './review-origin.ts';
 import {
   getToolsetToolMetadata,
-  isToolsetMethodAvailable,
   registerToolsetTool,
   type ToolsetToolOptions,
 } from './toolset-tools.ts';
@@ -99,19 +98,26 @@ function fromToolset(
   definition: Omit<AddonToolDefinition, 'name' | 'getMetadata' | 'register'> & {
     options: ToolsetToolOptions;
     available?: (context: AddonToolRegistryContext) => boolean;
+    /** Narrows the tool further per request, on top of the toolset gate. */
+    wrapEnabled?: (
+      server: McpServer<any, AddonContext>,
+      context: AddonToolRegistryContext,
+      enabled: ToolEnabled
+    ) => ToolEnabled;
   }
 ): AddonToolDefinition {
-  const { options, available, ...rest } = definition;
+  const { options, available, wrapEnabled, ...rest } = definition;
   return {
     ...rest,
     // Read from the constant, not the registry: this array is built at import time, while toolsets
-    // register later from their preset hooks.
+    // register later from their preset hooks. Availability deliberately does NOT consult the
+    // registry — a missing toolset must fail loudly at resolution (getToolset throws), not silently
+    // drop a tool from the list.
     name: MCP_TOOL_NAMES[options.method],
-    available: (context) =>
-      isToolsetMethodAvailable(options.method) && (available?.(context) ?? true),
+    available: (context) => available?.(context) ?? true,
     getMetadata: () => getToolsetToolMetadata(options),
-    register: async (server, _context, enabled) => {
-      registerToolsetTool(server, options, enabled);
+    register: async (server, context, enabled) => {
+      registerToolsetTool(server, options, wrapEnabled?.(server, context, enabled) ?? enabled);
     },
   };
 }
@@ -168,6 +174,11 @@ const addonToolDefinitions: AddonToolDefinition[] = [
     // context (explicit flag, or the trusted local-client header) decides whether a given MCP
     // client actually sees the tool.
     available: ({ availability }) => availability.reviewEnabledForCli,
+    wrapEnabled:
+      (server, { availability }, enabled) =>
+      async () =>
+        ((await enabled?.()) ?? true) &&
+        (server.ctx.custom?.reviewEnabled ?? availability.reviewEnabled),
     options: {
       method: 'review.create',
       telemetryToolset: 'dev',

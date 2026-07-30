@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { registerCoreToolsetsForTest } from './tools/toolset-fixtures.ts';
 import { McpServer } from 'tmcp';
 import { ValibotJsonSchemaAdapter } from '@tmcp/adapter-valibot';
 import { GET_TOOL_NAME } from '@storybook/mcp';
 import { logger } from 'storybook/internal/node-logger';
 import { buildStorybookAiMetadata } from './storybook-ai-metadata.ts';
-import { getAddonVitestConstants } from './tools/run-story-tests.ts';
+import { getAddonVitestConstants } from './utils/addon-vitest.ts';
 import type { AddonContext } from './types.ts';
 import { getManifestStatus } from './tools/is-manifest-available.ts';
 import { isAddonA11yEnabled } from './utils/is-addon-a11y-enabled.ts';
@@ -40,13 +41,15 @@ vi.mock('./utils/is-addon-a11y-enabled.ts', () => ({
   isAddonA11yEnabled: vi.fn(),
 }));
 
-vi.mock('./tools/run-story-tests.ts', async (importActual) => ({
+vi.mock('./utils/addon-vitest.ts', async (importActual) => ({
   ...(await importActual<typeof import('./tools/run-story-tests.ts')>()),
   getAddonVitestConstants: vi.fn(),
 }));
 
 describe('buildStorybookAiMetadata', () => {
   beforeEach(() => {
+    // The `services` preset hook does this in a real Storybook before metadata is built.
+    registerCoreToolsetsForTest();
     vi.clearAllMocks();
     vi.stubGlobal('fetch', vi.fn(mockManifestFetch(true)));
     vi.mocked(isModuleGraphSupported).mockResolvedValue(true);
