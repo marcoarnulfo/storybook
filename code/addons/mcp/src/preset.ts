@@ -39,15 +39,15 @@ export const experimental_devServer: PresetPropertyFn<
 
   const { refs, compositionAuth, sources, multiSource } = await resolveCompositionSources(options);
 
-  // Single source of truth for manifest access. In `experimentalDocgenServer` mode the
-  // local Storybook's `/manifests/*.json` are 404'd by core, so its manifest data is read
-  // in-process from the open services instead of over loopback HTTP. This access is created
-  // here (the one place that owns provider selection) and reused for both the standalone
-  // local source and the local branch of the composition provider.
+  // Composition (multi-source) is the only remaining consumer of the manifest-provider plumbing:
+  // single-source docs tools read the registered docs toolset instead. The local branch of the
+  // composition provider still needs the in-process access in docgen-server mode, where core 404s
+  // the local `/manifests/*.json`.
   const rawAvailability = await getToolAvailability(options);
-  const docgenServerAccess = rawAvailability.docgenServer
-    ? createDocgenServerManifestAccess(options)
-    : undefined;
+  const docgenServerAccess =
+    rawAvailability.docgenServer && refs.length > 0
+      ? createDocgenServerManifestAccess(options)
+      : undefined;
 
   let createManifestProvider: ((req: IncomingMessage) => ManifestProvider) | undefined;
 
@@ -65,15 +65,8 @@ export const experimental_devServer: PresetPropertyFn<
       compositionAuth.createManifestProvider(origin, docgenServerAccess?.manifestProvider);
   }
 
-  // Resolves the manifest access passed to `mcpServerHandler` for one request: the
-  // composition provider when refs are configured, otherwise the in-process provider when
-  // docgen-server mode is on, otherwise core's default HTTP provider (undefined). The
-  // in-process `resolveEntry` is always forwarded — the doc tools only consult it for the
-  // local source, so it is harmless in multi-source mode.
   const manifestAccessFor = (req: IncomingMessage) => ({
-    manifestProvider: createManifestProvider
-      ? createManifestProvider(req)
-      : docgenServerAccess?.manifestProvider,
+    manifestProvider: createManifestProvider?.(req),
     resolveEntry: docgenServerAccess?.resolveEntry,
   });
 

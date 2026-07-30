@@ -154,11 +154,17 @@ export function getToolsetToolMetadata(options: ToolsetToolOptions) {
     getService: (serviceId, serviceOptions) => getService(serviceId as any, serviceOptions) as any,
   };
 
+  // A zero-input method publishes no input schema, matching the hand-written tools it replaced.
+  const entries = (method.schema as { entries?: Record<string, unknown> }).entries;
+  const hasInput = !entries || Object.keys(entries).length > 0;
+
   return {
     name: MCP_TOOL_NAMES[options.method],
     title: MCP_TOOL_TITLES[options.method],
     description: resolveToolsetDescription(method.description, descriptionCtx),
-    schema: options.wrapSchema ? options.wrapSchema(method.schema) : method.schema,
+    ...(hasInput
+      ? { schema: options.wrapSchema ? options.wrapSchema(method.schema) : method.schema }
+      : {}),
     ...(method.outputSchema ? { outputSchema: method.outputSchema } : {}),
     ...options.extras,
   };

@@ -103,10 +103,11 @@ export function createDocsToolset({ docsAccess }: CreateDocsToolsetOptions) {
       },
       showStory: {
         schema: v.object({
-          componentId: v.pipe(v.string(), v.description('Component id.')),
-          storyName: v.pipe(v.string(), v.description('Story display name (not story id).')),
+          componentId: v.string(),
+          storyName: v.string(),
         }),
-        description: 'Returns documentation for one story of a component.',
+        description:
+          'Get detailed documentation for a specific story variant of a UI component. Use this when you need to see more usage examples of a component, via the stories written for it.',
         handler: async (input): Promise<DocsShowStoryOutput> => ({
           componentId: input.componentId,
           storyName: input.storyName,
