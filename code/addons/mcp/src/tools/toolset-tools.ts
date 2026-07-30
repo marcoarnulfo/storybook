@@ -28,11 +28,14 @@ import type { StorybookAiToolCallResult } from './tool-registry.ts';
 type Server = McpServer<any, AddonContext>;
 type ToolEnabled = Parameters<Server['tool']>[0]['enabled'];
 
+/** Telemetry grouping for one tool, unchanged from the hand-written registrations. */
+export type TelemetryToolset = 'dev' | 'test' | 'docs';
+
 export type ToolsetToolOptions = {
   /** Which toolset method backs this MCP tool. */
   method: ToolsetMethodRef;
   /** Telemetry grouping, unchanged from the hand-written tools. */
-  telemetryToolset: 'dev' | 'test';
+  telemetryToolset: TelemetryToolset;
   /** Extra MCP-only tool metadata, e.g. the preview app resource. */
   extras?: Record<string, unknown>;
   /** Wraps the input schema before publishing it (used for friendlier validation errors). */
@@ -42,6 +45,15 @@ export type ToolsetToolOptions = {
    * derives a request-relative root so a sub-path-hosted Storybook links to its own review page.
    */
   resolveOrigin?: (server: Server) => string | undefined;
+  /**
+   * Telemetry computed from the finished result. Most methods report from their handler via
+   * `ctx.telemetry`; the docs events also carry a token estimate of the rendered text, which only
+   * exists here in the adapter.
+   */
+  resultTelemetry?: (result: { input: unknown; data: unknown; text: string }) => {
+    event: string;
+    payload: Record<string, unknown>;
+  };
 };
 
 function resolveMethod(method: ToolsetMethodRef): ToolsetMethod<any, any> {
@@ -103,6 +115,11 @@ export async function callToolsetMethod(
     const data = await method.handler(input as never, ctx);
     const structuredContent = await toStructuredContent(method.outputSchema, data);
     const text = method.format(data as never, ctx);
+
+    if (options.resultTelemetry && !server.ctx.custom?.disableTelemetry) {
+      const { event, payload } = options.resultTelemetry({ input, data, text });
+      await collectTelemetry({ event, server, toolset: options.telemetryToolset, ...payload });
+    }
 
     return {
       content: [{ type: 'text', text }],

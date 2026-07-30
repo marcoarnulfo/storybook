@@ -15,6 +15,7 @@ import {
 import type { AddonContext } from '../types.ts';
 import type { ToolAvailability } from '../utils/get-tool-availability.ts';
 import { withFriendlyErrors } from '../utils/format-validation-issues.ts';
+import { estimateTokens } from '../utils/estimate-tokens.ts';
 import { PREVIEW_STORIES_RESOURCE_URI, addPreviewStoriesResource } from './preview-stories.ts';
 import {
   buildStorybookStoryInstructions,
@@ -122,6 +123,49 @@ function fromToolset(
   };
 }
 
+type DocsListOutput = {
+  manifests: {
+    componentManifest: { components: Record<string, unknown> };
+    docsManifest?: { docs: Record<string, unknown> };
+  };
+};
+
+/** Docs telemetry keeps its historical payload, including the rendered-text token estimate. */
+const docsListOptions: ToolsetToolOptions = {
+  method: 'docs.list',
+  telemetryToolset: 'docs',
+  resultTelemetry: ({ data, text }) => {
+    const { manifests } = data as DocsListOutput;
+    return {
+      event: 'tool:listAllDocumentation',
+      payload: {
+        componentCount: Object.keys(manifests.componentManifest.components).length,
+        docsCount: Object.keys(manifests.docsManifest?.docs ?? {}).length,
+        resultTokenCount: estimateTokens(text),
+        sourceCount: undefined,
+      },
+    };
+  },
+};
+
+const docsShowOptions: ToolsetToolOptions = {
+  method: 'docs.show',
+  telemetryToolset: 'docs',
+  resultTelemetry: ({ input, data, text }) => ({
+    event: 'tool:getDocumentation',
+    payload: {
+      componentId: (input as { id: string }).id,
+      found: (data as { entry?: unknown }).entry !== undefined,
+      resultTokenCount: estimateTokens(text),
+    },
+  }),
+};
+
+const docsShowStoryOptions: ToolsetToolOptions = {
+  method: 'docs.showStory',
+  telemetryToolset: 'docs',
+};
+
 const addonToolDefinitions: AddonToolDefinition[] = [
   fromToolset({
     toolset: 'dev',
@@ -191,37 +235,57 @@ const addonToolDefinitions: AddonToolDefinition[] = [
     available: ({ availability }) => availability.testSupported,
     options: { method: 'test.run', telemetryToolset: 'test' },
   }),
+  // Single-source docs run on the core docs toolset. Composition (refs configured) keeps the
+  // `@storybook/mcp` implementation, which owns per-source fetching, auth, and `storybookId`
+  // scoping — that unification is a follow-up.
   {
     name: LIST_TOOL_NAME,
     toolset: 'docs',
     available: ({ availability }) => availability.docsEnabled,
-    getMetadata: () => getListAllDocumentationToolMetadata(),
-    register: async (server, _context, enabled) => {
+    getMetadata: ({ multiSource }) =>
+      multiSource ? getListAllDocumentationToolMetadata() : getToolsetToolMetadata(docsListOptions),
+    register: async (server, { multiSource }, enabled) => {
       logger.info(
         'Experimental components manifest feature detected - registering component tools'
       );
-      await addListAllDocumentationTool(server, enabled);
+      if (multiSource) {
+        await addListAllDocumentationTool(server, enabled);
+      } else {
+        registerToolsetTool(server, docsListOptions, enabled);
+      }
     },
   },
   {
     name: GET_TOOL_NAME,
     toolset: 'docs',
     available: ({ availability }) => availability.docsEnabled,
-    getMetadata: ({ multiSource }) => getDocumentationToolMetadata({ multiSource }),
-    register: (server, { multiSource }, enabled) =>
-      addGetDocumentationTool(server, enabled, {
-        multiSource,
-      }),
+    getMetadata: ({ multiSource }) =>
+      multiSource
+        ? getDocumentationToolMetadata({ multiSource })
+        : getToolsetToolMetadata(docsShowOptions),
+    register: async (server, { multiSource }, enabled) => {
+      if (multiSource) {
+        await addGetDocumentationTool(server, enabled, { multiSource });
+      } else {
+        registerToolsetTool(server, docsShowOptions, enabled);
+      }
+    },
   },
   {
     name: GET_STORY_TOOL_NAME,
     toolset: 'docs',
     available: ({ availability }) => availability.docsEnabled,
-    getMetadata: ({ multiSource }) => getStoryDocumentationToolMetadata({ multiSource }),
-    register: (server, { multiSource }, enabled) =>
-      addGetStoryDocumentationTool(server, enabled, {
-        multiSource,
-      }),
+    getMetadata: ({ multiSource }) =>
+      multiSource
+        ? getStoryDocumentationToolMetadata({ multiSource })
+        : getToolsetToolMetadata(docsShowStoryOptions),
+    register: async (server, { multiSource }, enabled) => {
+      if (multiSource) {
+        await addGetStoryDocumentationTool(server, enabled, { multiSource });
+      } else {
+        registerToolsetTool(server, docsShowStoryOptions, enabled);
+      }
+    },
   },
 ];
 

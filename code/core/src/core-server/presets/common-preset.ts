@@ -59,7 +59,6 @@ import { initFileSearchChannel } from '../server-channel/file-search-channel.ts'
 import { initGhostStoriesChannel } from '../server-channel/ghost-stories-channel.ts';
 import { initOpenInEditorChannel } from '../server-channel/open-in-editor-channel.ts';
 import { isReviewFeatureEnabled } from '../../shared/review/features.ts';
-import { initReviewChannel } from '../server-channel/review-channel.ts';
 import { initTelemetryChannel } from '../server-channel/telemetry-channel.ts';
 import { initializeChecklist } from '../utils/checklist.ts';
 import { defaultFavicon, defaultStaticDirs } from '../utils/constants.ts';
@@ -323,7 +322,6 @@ export const experimental_serverChannel = async (
     // dev-server process and `experimental_serverChannel` has no teardown phase to call it from, so
     // this listener is process-lifetime by design. Wiring cleanup here would add lifecycle
     // infrastructure with nothing to invoke it, matching the other `init*Channel` calls above.
-    initReviewChannel(channel);
   }
   initTelemetryChannel(channel);
 
