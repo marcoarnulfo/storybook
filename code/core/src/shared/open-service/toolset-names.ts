@@ -21,6 +21,23 @@ export const MCP_TOOL_NAMES = {
 
 export type ToolsetMethodRef = keyof typeof MCP_TOOL_NAMES;
 
+/**
+ * MCP tool titles, frozen alongside {@link MCP_TOOL_NAMES}.
+ *
+ * A title is display metadata for one surface rather than a description of the capability, which is
+ * why it lives with the names instead of on the method.
+ */
+export const MCP_TOOL_TITLES: Record<ToolsetMethodRef, string> = {
+  'stories.preview': 'Get story preview URLs',
+  'stories.changed': 'Get changed stories metadata',
+  'stories.findByComponent': 'Get stories for component files',
+  'test.run': 'Storybook Tests',
+  'review.create': 'Display Storybook review',
+  'docs.list': 'List All Documentation',
+  'docs.show': 'Get Documentation',
+  'docs.showStory': 'Get Documentation for Story',
+};
+
 /** `stories.findByComponent` -> `stories find-by-component`. */
 function toCliPath(method: ToolsetMethodRef): string {
   const [toolsetId, methodName] = method.split('.');

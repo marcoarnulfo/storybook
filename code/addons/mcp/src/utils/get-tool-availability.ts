@@ -2,7 +2,7 @@ import type { Options } from 'storybook/internal/types';
 import { isModuleGraphSupported } from './module-graph.ts';
 import { getReviewStatus } from './is-review-available.ts';
 import { getManifestStatus, type ManifestFeatures } from '../tools/is-manifest-available.ts';
-import { getAddonVitestConstants } from '../tools/run-story-tests.ts';
+import { getAddonVitestConstants } from './addon-vitest.ts';
 import { isAddonA11yEnabled } from './is-addon-a11y-enabled.ts';
 
 export interface ToolAvailability {

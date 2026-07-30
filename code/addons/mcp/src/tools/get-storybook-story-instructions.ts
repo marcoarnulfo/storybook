@@ -1,6 +1,6 @@
 import type { McpServer } from 'tmcp';
 import type { Options } from 'storybook/internal/types';
-import { getAddonVitestConstants } from './run-story-tests.ts';
+import { getAddonVitestConstants } from '../utils/addon-vitest.ts';
 import { collectTelemetry } from '../telemetry.ts';
 import { getFinalLinksGuidance } from '../instructions/build-server-instructions.ts';
 import { getReviewStatus } from '../utils/is-review-available.ts';

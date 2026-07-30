@@ -14,27 +14,20 @@ import {
 } from '@storybook/mcp';
 import type { AddonContext } from '../types.ts';
 import type { ToolAvailability } from '../utils/get-tool-availability.ts';
-import { getDisplayReviewToolMetadata, addDisplayReviewTool } from './display-review.ts';
-import { getChangedStoriesToolMetadata, addGetChangedStoriesTool } from './get-changed-stories.ts';
-import {
-  getStoriesByComponentToolMetadata,
-  addGetStoriesByComponentTool,
-} from './get-stories-by-component.ts';
+import { withFriendlyErrors } from '../utils/format-validation-issues.ts';
+import { PREVIEW_STORIES_RESOURCE_URI, addPreviewStoriesResource } from './preview-stories.ts';
 import {
   buildStorybookStoryInstructions,
   getStorybookStoryInstructionsToolMetadata,
   addGetUIBuildingInstructionsTool,
 } from './get-storybook-story-instructions.ts';
-import { getPreviewStoriesToolMetadata, addPreviewStoriesTool } from './preview-stories.ts';
-import { getRunStoryTestsToolMetadata, addRunStoryTestsTool } from './run-story-tests.ts';
+import { resolveReviewOrigin } from './review-origin.ts';
 import {
-  DISPLAY_REVIEW_TOOL_NAME,
-  GET_CHANGED_STORIES_TOOL_NAME,
-  GET_STORIES_BY_COMPONENT_TOOL_NAME,
-  GET_UI_BUILDING_INSTRUCTIONS_TOOL_NAME,
-  PREVIEW_STORIES_TOOL_NAME,
-  RUN_STORY_TESTS_TOOL_NAME,
-} from './tool-names.ts';
+  getToolsetToolMetadata,
+  isToolsetMethodAvailable,
+  registerToolsetTool,
+  type ToolsetToolOptions,
+} from './toolset-tools.ts';
 
 export type ToolMetadata = {
   name: string;
@@ -94,17 +87,43 @@ const createToolsetEnabled =
   () =>
     server.ctx.custom?.toolsets?.[toolset] ?? true;
 
+/**
+ * Declares an MCP tool that is backed by a core toolset method.
+ *
+ * The addon contributes only what is specific to this surface: the MCP toolset grouping, the
+ * availability gate, and any MCP-only metadata. Name, title, description, schemas, behaviour and
+ * telemetry all come from the method.
+ */
+function fromToolset(
+  definition: Omit<AddonToolDefinition, 'name' | 'getMetadata' | 'register'> & {
+    options: ToolsetToolOptions;
+    available?: (context: AddonToolRegistryContext) => boolean;
+  }
+): AddonToolDefinition {
+  const { options, available, ...rest } = definition;
+  return {
+    ...rest,
+    name: getToolsetToolMetadata(options).name,
+    available: (context) =>
+      isToolsetMethodAvailable(options.method) && (available?.(context) ?? true),
+    getMetadata: () => getToolsetToolMetadata(options),
+    register: async (server, _context, enabled) => {
+      registerToolsetTool(server, options, enabled);
+    },
+  };
+}
+
 const addonToolDefinitions: AddonToolDefinition[] = [
-  {
-    name: PREVIEW_STORIES_TOOL_NAME,
+  fromToolset({
     toolset: 'dev',
-    getMetadata: ({ availability }) =>
-      getPreviewStoriesToolMetadata({ reviewEnabled: availability.reviewEnabled }),
-    register: (server, { availability }, enabled) =>
-      addPreviewStoriesTool(server, enabled, { reviewEnabled: availability.reviewEnabled }),
-  },
+    options: {
+      method: 'stories.preview',
+      telemetryToolset: 'dev',
+      extras: { _meta: { ui: { resourceUri: PREVIEW_STORIES_RESOURCE_URI } } },
+    },
+  }),
   {
-    name: GET_UI_BUILDING_INSTRUCTIONS_TOOL_NAME,
+    name: 'get-storybook-story-instructions',
     toolset: 'dev',
     getMetadata: ({ availability, toolsets }) => {
       const testToolsetAvailable = isToolsetEnabled('test', toolsets) && availability.testSupported;
@@ -130,50 +149,34 @@ const addonToolDefinitions: AddonToolDefinition[] = [
       },
     }),
   },
-  {
-    name: GET_CHANGED_STORIES_TOOL_NAME,
+  fromToolset({
     toolset: 'dev',
     available: ({ availability }) => availability.changeDetectionEnabled,
-    getMetadata: () => getChangedStoriesToolMetadata(),
-    register: (server, { availability }, enabled) =>
-      addGetChangedStoriesTool(server, enabled, { reviewEnabled: availability.reviewEnabled }),
-  },
-  {
-    name: GET_STORIES_BY_COMPONENT_TOOL_NAME,
+    options: { method: 'stories.changed', telemetryToolset: 'dev' },
+  }),
+  fromToolset({
     toolset: 'dev',
     available: ({ availability }) => availability.moduleGraphSupported,
-    getMetadata: ({ availability }) =>
-      getStoriesByComponentToolMetadata({ reviewEnabled: availability.reviewEnabled }),
-    register: (server, { availability }, enabled) =>
-      addGetStoriesByComponentTool(server, enabled, {
-        reviewEnabled: availability.reviewEnabled,
-      }),
-  },
-  {
-    name: DISPLAY_REVIEW_TOOL_NAME,
+    options: { method: 'stories.findByComponent', telemetryToolset: 'dev' },
+  }),
+  fromToolset({
     toolset: 'dev',
-    // Registered whenever the CLI default could turn review on; the per-request
-    // `reviewEnabled` context (explicit flag, or the trusted local-client header)
-    // decides whether a given MCP client actually sees the tool.
+    // Registered whenever the CLI default could turn review on; the per-request `reviewEnabled`
+    // context (explicit flag, or the trusted local-client header) decides whether a given MCP
+    // client actually sees the tool.
     available: ({ availability }) => availability.reviewEnabledForCli,
-    getMetadata: () => getDisplayReviewToolMetadata(),
-    register: (server, { availability }, enabled) =>
-      addDisplayReviewTool(
-        server,
-        async () =>
-          ((await enabled?.()) ?? true) &&
-          (server.ctx.custom?.reviewEnabled ?? availability.reviewEnabled)
-      ),
-  },
-  {
-    name: RUN_STORY_TESTS_TOOL_NAME,
+    options: {
+      method: 'review.create',
+      telemetryToolset: 'dev',
+      wrapSchema: withFriendlyErrors,
+      resolveOrigin: (server) => resolveReviewOrigin(server.ctx.custom ?? {}),
+    },
+  }),
+  fromToolset({
     toolset: 'test',
     available: ({ availability }) => availability.testSupported,
-    getMetadata: ({ availability }) =>
-      getRunStoryTestsToolMetadata({ a11yEnabled: availability.a11yEnabled }),
-    register: (server, { availability }, enabled) =>
-      addRunStoryTestsTool(server, { a11yEnabled: availability.a11yEnabled }, enabled),
-  },
+    options: { method: 'test.run', telemetryToolset: 'test' },
+  }),
   {
     name: LIST_TOOL_NAME,
     toolset: 'docs',
@@ -231,6 +234,10 @@ export async function registerAddonMcpTools(
   server: McpServer<any, AddonContext>,
   context: AddonToolRegistryContext
 ) {
+  // The preview app resource is transport-level: it is served to the client independently of the
+  // tool call that references it.
+  await addPreviewStoriesResource(server);
+
   for (const definition of addonToolDefinitions) {
     if (
       isToolsetEnabled(definition.toolset, context.toolsets) &&
