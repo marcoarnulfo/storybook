@@ -15,15 +15,24 @@ import type { AllManifests } from './manifest-formatter/manifest-types.ts';
 import { listSources, resolveInSource, type DocsSource } from './multi-source.ts';
 import type { SourceListing } from './sources.ts';
 
-export type CreateDocsToolsetOptions = {
-  /** Reads the one Storybook these tools serve. Omit when `sources` is given. */
-  docsAccess?: DocsAccess;
-  /**
-   * The composed Storybooks these tools serve. When present the tools take a `storybookId`, since
-   * ids are only unique within a source.
-   */
-  sources?: DocsSource[];
-};
+/**
+ * Which Storybooks these tools serve — exactly one of the two.
+ *
+ * Modelled as an exclusive union so neither "no access at all" nor "both, one silently winning" can
+ * be constructed: a composition takes a `storybookId` on every lookup and a single Storybook must
+ * not ask for one, and that difference is decided here.
+ */
+export type CreateDocsToolsetOptions =
+  | {
+      /** Reads the one Storybook these tools serve. */
+      docsAccess: DocsAccess;
+      sources?: never;
+    }
+  | {
+      /** The composed Storybooks these tools serve; ids are only unique within a source. */
+      sources: DocsSource[];
+      docsAccess?: never;
+    };
 
 export type DocsListOutput = {
   withStoryIds: boolean;
@@ -133,7 +142,8 @@ function selectSource(
  * server (open services or the built manifests), a hosted Storybook (manifest files over any
  * provider), and a composition of several of those.
  */
-export function createDocsToolset({ docsAccess, sources }: CreateDocsToolsetOptions) {
+export function createDocsToolset(options: CreateDocsToolsetOptions) {
+  const { docsAccess, sources } = options;
   const multiSource = !!sources?.length;
 
   // A composition needs the caller to say which Storybook they mean; a single one must not ask.

@@ -11,6 +11,7 @@ import type { McpServer } from 'tmcp';
 import type { GenericSchema } from 'valibot';
 
 import {
+  createCompositionDocsSources,
   createDocsToolset,
   createProviderDocsAccess,
   emptyManifests,
@@ -41,22 +42,25 @@ const ctx: ToolsetCtx = {
   },
 };
 
-/** True when this Storybook is serving a composition rather than itself alone. */
+/**
+ * The composed sources this request serves, or nothing when this Storybook stands alone.
+ *
+ * Only the "is this a composition" test is hosted-specific — a configured source without a URL is
+ * this Storybook itself. Building the accesses is the shared helper's job, so hosted and dev-server
+ * compositions cannot drift apart.
+ */
 function getSources(context: StorybookContext | undefined): DocsSource[] | undefined {
   const sources = context?.sources;
   if (!sources?.some((source) => source.url)) {
     return undefined;
   }
 
-  return sources.map((source) => ({
-    source,
-    access: createProviderDocsAccess({
-      source,
-      manifestProvider: context?.manifestProvider,
-      getRequest: () => context?.request,
-      resolveEntry: context?.resolveEntry,
-    }),
-  }));
+  return createCompositionDocsSources({
+    sources,
+    manifestProvider: context?.manifestProvider,
+    getRequest: () => context?.request,
+    resolveEntry: context?.resolveEntry,
+  });
 }
 
 /**

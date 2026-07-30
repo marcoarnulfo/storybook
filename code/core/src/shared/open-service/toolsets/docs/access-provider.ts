@@ -32,10 +32,10 @@ import { emptyManifests, type DocsAccess, type ResolvedDocsEntry } from './acces
 import { mapWithConcurrency } from './map-with-concurrency.ts';
 import { ManifestGetError, RequiresOwnMcpError, type Source } from './sources.ts';
 
-/** Where the top-level manifests live, relative to the Storybook build. */
 /** Cap on in-flight story `$ref` fetches while expanding one source's listing. */
 const STORY_REF_CONCURRENCY = 16;
 
+/** Where the top-level manifests live, relative to the Storybook build. */
 export const COMPONENT_MANIFEST_PATH = './manifests/components.json';
 export const DOCS_MANIFEST_PATH = './manifests/docs.json';
 
@@ -203,12 +203,49 @@ export function parseManifestRef(ref: string): { path: string; pointer: string[]
   return { path: `./${resolved}`, pointer };
 }
 
-/** Fetches the file a `$ref` points at and walks its JSON pointer. */
+/**
+ * Envelopes for the three kinds of payload a `$ref` can point at.
+ *
+ * These check the shape the adapters actually read, not the full docgen format: the payloads carry
+ * renderer-specific fields that core must pass through untouched, so a strict schema here would
+ * reject valid manifests. What matters is that a hosted Storybook cannot hand the adapters a string
+ * or an array where they expect a record.
+ */
+/**
+ * A JSON object. `looseObject` alone would let an array through, since arrays are objects, and the
+ * adapters then read `.name` / `.stories` off it and silently produce an empty component.
+ */
+const jsonObject = <TSchema extends v.GenericSchema>(schema: TSchema) =>
+  v.pipe(
+    // Checked on the raw input: `looseObject` copies an array's entries into a plain object, so by
+    // the time it has run there is nothing left to recognise.
+    v.custom<unknown>((input) => !Array.isArray(input), 'Expected a JSON object'),
+    schema
+  );
+
+const DocgenRefPayload = jsonObject(v.looseObject({}));
+const StoryDocsRefPayload = v.nullable(
+  jsonObject(
+    v.looseObject({
+      // A record keyed by story id, or an already-resolved array — `adaptCoreStories` accepts both.
+      stories: v.optional(
+        v.union([v.record(v.string(), v.looseObject({})), v.array(v.looseObject({}))])
+      ),
+      import: v.optional(v.string()),
+    })
+  )
+);
+const MdxRefPayload = jsonObject(
+  v.looseObject({ id: v.optional(v.string()), name: v.optional(v.string()) })
+);
+
+/** Fetches the file a `$ref` points at, walks its JSON pointer and validates what it lands on. */
 async function fetchRefValue<T>(
   ref: string,
   request: Request | undefined,
   provider: ManifestProvider,
-  source: Source | undefined
+  source: Source | undefined,
+  schema: v.GenericSchema
 ): Promise<T> {
   const { path, pointer } = parseManifestRef(ref);
   const jsonString = await provider(request, path, source);
@@ -237,7 +274,15 @@ async function fetchRefValue<T>(
     }
   }
 
-  return target as T;
+  const parsed = v.safeParse(schema, target);
+  if (!parsed.success) {
+    throw new ManifestGetError(
+      `Payload referenced by "${ref}" is not a valid manifest payload.`,
+      path
+    );
+  }
+
+  return parsed.output as T;
 }
 
 /**
@@ -276,7 +321,13 @@ export async function resolveComponentEntry(
   let core: CoreDocgenComponent = identity;
 
   if (docgenRef) {
-    const payload = await fetchRefValue<CoreDocgenComponent>(docgenRef, request, provider, source);
+    const payload = await fetchRefValue<CoreDocgenComponent>(
+      docgenRef,
+      request,
+      provider,
+      source,
+      DocgenRefPayload
+    );
     core = { ...core, ...payload, ...identity };
   }
 
@@ -289,7 +340,7 @@ export async function resolveComponentEntry(
     const storyDocs = await fetchRefValue<{
       stories?: CoreDocgenComponent['stories'];
       import?: string;
-    } | null>(storiesRef, request, provider, source);
+    } | null>(storiesRef, request, provider, source, StoryDocsRefPayload);
     if (storyDocs?.stories) {
       core.stories = storyDocs.stories;
     }
@@ -303,7 +354,7 @@ export async function resolveComponentEntry(
     for (const [docId, doc] of docEntries) {
       const mdxRef = 'mdx' in doc ? doc.mdx?.$ref : undefined;
       docs[docId] = mdxRef
-        ? await fetchRefValue<Doc>(mdxRef, request, provider, source)
+        ? await fetchRefValue<Doc>(mdxRef, request, provider, source, MdxRefPayload)
         : (doc as Doc);
     }
     core.docs = docs;
@@ -331,7 +382,8 @@ export async function resolveComponentStories(
     component.stories.$ref,
     request,
     provider,
-    source
+    source,
+    StoryDocsRefPayload
   );
 
   return {
@@ -353,7 +405,7 @@ export async function resolveDocEntry(
   }
 
   const provider = manifestProvider ?? defaultManifestProvider;
-  const payload = await fetchRefValue<Doc>(ref, request, provider, source);
+  const payload = await fetchRefValue<Doc>(ref, request, provider, source, MdxRefPayload);
 
   return adaptCoreDoc({
     ...payload,

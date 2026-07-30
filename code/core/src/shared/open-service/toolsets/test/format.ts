@@ -290,6 +290,11 @@ function formatTestRunSummary(data: TestRunData): string {
         `- Accessibility tests: ${a11yCount.success} passed, ${a11yCount.warning} warnings, ${a11yCount.error} failed`,
       ].join('\n');
     }
+    default: {
+      // Type-only: a new outcome must get its own summary rather than falling through.
+      const _exhaustive: never = data;
+      return _exhaustive;
+    }
   }
 }
 
