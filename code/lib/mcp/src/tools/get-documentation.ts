@@ -13,7 +13,7 @@ import {
   formatComponentManifest,
   formatDocsManifest,
   MAX_STORIES_TO_SHOW,
-} from '../utils/manifest-formatter/markdown.ts';
+} from 'storybook/internal/toolsets-docs';
 import { GET_STORY_TOOL_NAME } from './get-documentation-for-story.ts';
 
 export const GET_TOOL_NAME = 'get-documentation';

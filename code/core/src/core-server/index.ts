@@ -76,6 +76,7 @@ export { createServiceDocsAccess } from '../shared/open-service/toolsets/docs/ac
 export { createManifestDocsAccess } from '../shared/open-service/toolsets/docs/access-manifest.ts';
 export { createMultiSourceDocsAccess } from '../shared/open-service/toolsets/docs/access-multi-source.ts';
 export { createStoriesToolset } from '../shared/open-service/toolsets/stories/definition.ts';
+export type { PreviewStoriesOutput } from '../shared/open-service/toolsets/stories/definition.ts';
 export { reviewToolset } from '../shared/open-service/toolsets/review/definition.ts';
 
 export { UniversalStore as experimental_UniversalStore } from '../shared/universal-store/index.ts';

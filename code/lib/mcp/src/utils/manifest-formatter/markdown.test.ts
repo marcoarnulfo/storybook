@@ -1,11 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { AllManifests, ComponentManifest, ComponentManifestMap } from '../../types.ts';
 import fullManifestFixture from '../../../fixtures/full-manifest.fixture.json' with { type: 'json' };
-import {
-  formatComponentManifest,
-  formatManifestsToLists,
-  formatMultiSourceManifestsToLists,
-} from './markdown.ts';
+import { formatComponentManifest } from 'storybook/internal/toolsets-docs';
+import { formatManifestsToLists, formatMultiSourceManifestsToLists } from './markdown.ts';
 
 describe('MarkdownFormatter - formatComponentManifest', () => {
   it('formats all full fixtures', () => {

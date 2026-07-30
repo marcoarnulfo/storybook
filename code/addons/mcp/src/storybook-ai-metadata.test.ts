@@ -42,7 +42,7 @@ vi.mock('./utils/is-addon-a11y-enabled.ts', () => ({
 }));
 
 vi.mock('./utils/addon-vitest.ts', async (importActual) => ({
-  ...(await importActual<typeof import('./tools/run-story-tests.ts')>()),
+  ...(await importActual<typeof import('./utils/addon-vitest.ts')>()),
   getAddonVitestConstants: vi.fn(),
 }));
 

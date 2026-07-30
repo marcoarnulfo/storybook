@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractDocsSummary } from './extract-docs-summary.ts';
+import { extractDocsSummary } from 'storybook/internal/toolsets-docs';
 
 describe('extractDocsSummary', () => {
   describe('import statement removal', () => {

@@ -159,7 +159,10 @@ export function registerToolsetTool(
   options: ToolsetToolOptions,
   enabled: ToolEnabled
 ): void {
-  server.tool({ ...getToolsetToolMetadata(options), enabled } as any, (input: unknown) =>
-    callToolsetMethod(server, options, input)
+  // tmcp types the handler from the literal schema generic; toolset schemas resolve at runtime,
+  // so both sides step out of that inference.
+  server.tool(
+    { ...getToolsetToolMetadata(options), enabled } as never,
+    ((input: unknown) => callToolsetMethod(server, options, input)) as never
   );
 }

@@ -4,7 +4,7 @@ import type { StorybookContext } from '../types.ts';
 import { StorybookIdField } from '../types.ts';
 import { errorToMCPContent, getManifests, resolveComponentEntry } from '../utils/get-manifest.ts';
 import type { ComponentManifest } from '../types.ts';
-import { formatStoryDocumentation } from '../utils/manifest-formatter/markdown.ts';
+import { formatStoryDocumentation } from 'storybook/internal/toolsets-docs';
 import { LIST_TOOL_NAME } from './list-all-documentation.ts';
 
 export const GET_STORY_TOOL_NAME = 'get-documentation-for-story';
