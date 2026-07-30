@@ -8,7 +8,10 @@
 
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { getService } from 'storybook/internal/core-server';
-import { OpenServiceModuleGraphUnavailableError } from 'storybook/internal/server-errors';
+import {
+  OpenServiceModuleGraphUnavailableError,
+  OpenServiceToolsetOutputMismatchError,
+} from 'storybook/internal/server-errors';
 import {
   MCP_TOOL_NAMES,
   MCP_TOOL_TITLES,
@@ -28,13 +31,13 @@ import type { StorybookAiToolCallResult } from './tool-registry.ts';
 type Server = McpServer<any, AddonContext>;
 type ToolEnabled = Parameters<Server['tool']>[0]['enabled'];
 
-/** Telemetry grouping for one tool, unchanged from the hand-written registrations. */
+/** Which toolset an MCP tool's telemetry is grouped under. */
 export type TelemetryToolset = 'dev' | 'test' | 'docs';
 
 export type ToolsetToolOptions = {
   /** Which toolset method backs this MCP tool. */
   method: ToolsetMethodRef;
-  /** Telemetry grouping, unchanged from the hand-written tools. */
+  /** Telemetry grouping for this tool's events. */
   telemetryToolset: TelemetryToolset;
   /** Extra MCP-only tool metadata, e.g. the preview app resource. */
   extras?: Record<string, unknown>;
@@ -81,9 +84,7 @@ async function toStructuredContent(
   }
   const result = await outputSchema['~standard'].validate(data);
   if (result.issues) {
-    throw new Error(
-      `Toolset output did not match its published output schema: ${JSON.stringify(result.issues)}`
-    );
+    throw new OpenServiceToolsetOutputMismatchError({ issues: result.issues });
   }
   return result.value as Record<string, unknown>;
 }

@@ -96,21 +96,40 @@ AST indexing keeps the sidebar fast and prevents one broken story file from brea
 - All core OSA services are `internal: true` and may change without a public semver bump. Resolve
   internal services with `getService(id, { internal: true })`. A plain `getService(id)` throws when
   the service is internal.
-- A toolset has an `id`, description, and methods with only `schema`, `description`, and `handler`.
+- A toolset has an `id`, a description, and methods with five fields: `description`, `schema`
+  (input), optional `outputSchema`, `handler`, and `format`.
+- `handler(input, ctx)` produces data and owns side effects and telemetry; `format(data, ctx)`
+  renders that data as text and returns `string | string[]`. They are separate because one MCP
+  reply carries `content` (text) and `structuredContent` (JSON matching `outputSchema`) at once,
+  and both must come from a single run — re-running a method with side effects would repeat them.
+  The CLI's `--json` is "skip `format`". Multiple blocks exist because `preview-stories` renders one
+  text block per URL.
+- `ctx` is `{ consumer: 'cli' | 'mcp', origin?, getService, telemetry? }`. A method's
+  `description` may be a function of `ctx`, so agent-facing prose lives with the capability. Name
+  sibling tools through `getRef(ctx)` rather than hardcoding either spelling — it renders the frozen
+  MCP tool name or the CLI command per consumer.
+- Boot-time facts that vary prose (review enabled, a11y enabled) are factory options on the toolset,
+  not ctx fields.
+- `MCP_TOOL_NAMES` / `MCP_TOOL_TITLES` (`open-service/toolset-names.ts`) are the frozen public MCP
+  contract. Both MCP packages register from them; changing an entry is a breaking change.
 - Toolsets register imperatively via `registerToolset`, called from the same place the paired
   service registers (the `services` preset hook for core and addons; the mechanism itself does not
   depend on the Node preset system). Feature gating is shared: a disabled feature registers neither
-  the service nor its toolset. Adapters read the set via `getRegisteredToolsets()`; nothing consumes
-  it before Milestone 4.
-- Handlers receive `(input, ctx)` with `consumer` (`'cli' | 'mcp'`), optional `origin`, required
-  `format` (`'markdown' | 'json'`), and `getService`. Methods never declare the output format;
-  adapters own the mapping (CLI `--json` flag, MCP `json` tool input).
-- The docs toolset's Markdown is a verbatim port of the `@storybook/mcp` manifest formatter
-  (`toolsets/docs/manifest-formatter/`); the two copies must not drift until Milestone 4 deletes the
-  original. MCP consumer + Markdown is the parity-tested cell.
-- The toolset surface remains experimental. Production MCP migration is Milestone 4. CLI generation
-  and production `storybook tools` wiring are Milestone 5. MCP tools remain hand-authored in
-  `addon-mcp` until Milestone 4.
+  the service nor its toolset. `registerToolset` throws on a duplicate id, and `getToolset(id)`
+  throws when the id is unregistered — a missing toolset must fail loudly, never silently drop a
+  tool. Registration sites today: `docs`, `stories` and `review` in core's `services` hook, `test`
+  in addon-vitest's server channel.
+- The docs toolset is runtime-agnostic behind an injected `DocsAccess` (`list` + `resolve`), so the
+  same definition serves the dev server (open services when `experimentalDocgenServer` is on, the
+  built manifests otherwise) and a hosted Storybook. A test asserts it never reaches `core-server`;
+  keep it that way.
+- `@storybook/mcp` shares core's manifest formatter through the dependency-light
+  `storybook/internal/toolsets-docs` entry, taking `storybook` as a devDependency and bundling it —
+  its published dependencies must stay free of `storybook`.
+- Toolset factories are exported from `storybook/internal/core-server`, not `storybook/open-service`:
+  they reach server-only code, and the latter entry is a manager global.
+- Still open: CLI generation and `storybook tools` wiring (Milestone 5), and multi-source
+  (composition) docs tools, which still run on `@storybook/mcp`'s own implementation.
 
 ## Common Commands
 

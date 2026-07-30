@@ -11,7 +11,6 @@ import {
   clearToolsetRegistry,
   getRegisteredToolsets,
   getToolset,
-  hasToolset,
   registerToolset,
 } from './toolset-registry.ts';
 
@@ -67,15 +66,5 @@ describe('getToolset', () => {
 
   it('throws for an unregistered id instead of returning an empty result', () => {
     expect(() => getToolset('stories')).toThrow(OpenServiceMissingToolsetError);
-  });
-});
-
-describe('hasToolset', () => {
-  it('reports registration without throwing', () => {
-    expect(hasToolset('docs')).toBe(false);
-
-    registerToolset(makeToolset('docs'));
-
-    expect(hasToolset('docs')).toBe(true);
   });
 });

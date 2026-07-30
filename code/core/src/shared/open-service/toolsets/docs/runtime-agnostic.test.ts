@@ -7,13 +7,7 @@ const DOCS_TOOLSET_DIR = import.meta.dirname;
 const CORE_SRC = resolve(DOCS_TOOLSET_DIR, '../../../..');
 
 /** Entry points that must stay runtime-agnostic so every consumer can compose them. */
-const ENTRY_POINTS = [
-  'definition.ts',
-  'access.ts',
-  'access-service.ts',
-  'access-manifest.ts',
-  'access-multi-source.ts',
-];
+const ENTRY_POINTS = ['definition.ts', 'access.ts', 'access-service.ts', 'access-manifest.ts'];
 
 const IMPORT_RE = /^\s*(?:import|export)\s(?:[\s\S]*?)from\s+['"]([^'"]+)['"]/gm;
 const TYPE_ONLY_RE = /^\s*(?:import|export)\s+type\s/;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { registerCoreToolsetsForTest } from './tools/toolset-fixtures.ts';
+import { registerCoreToolsetsForTest } from './test-support/register-core-toolsets.ts';
 import { McpServer } from 'tmcp';
 import { ValibotJsonSchemaAdapter } from '@tmcp/adapter-valibot';
 import { GET_TOOL_NAME } from '@storybook/mcp';

@@ -25,7 +25,6 @@ export {
   clearToolsetRegistry,
   getRegisteredToolsets,
   getToolset,
-  hasToolset,
   registerToolset,
 } from './toolset-registry.ts';
 export type { KnownToolsets } from './toolset-types.ts';

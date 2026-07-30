@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { registerCoreToolsetsForTest } from './tools/toolset-fixtures.ts';
+import { registerCoreToolsetsForTest } from './test-support/register-core-toolsets.ts';
 import {
   incomingMessageToWebRequest,
   webResponseToServerResponse,

@@ -63,17 +63,7 @@ export function getToolset(toolsetId: string): AnyToolsetDefinition {
   return toolset;
 }
 
-/** Whether a toolset id is registered. Adapters gate optional tools on this. */
-export function hasToolset(toolsetId: string): boolean {
-  return getToolsetRegistry().has(toolsetId);
-}
-
-/**
- * Returns the registered toolsets in registration order.
- *
- * Adapter-facing: the MCP servers and the `storybook tools` CLI (Milestone 5) read the public tool
- * surface from here.
- */
+/** Returns the registered toolsets in registration order. */
 export function getRegisteredToolsets(): AnyToolsetDefinition[] {
   return Array.from(getToolsetRegistry().values());
 }

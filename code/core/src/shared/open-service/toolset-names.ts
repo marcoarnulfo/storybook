@@ -6,7 +6,7 @@ import type { ToolsetCtx } from './toolset-definition.ts';
  * These names are the public MCP contract of `@storybook/addon-mcp` and `@storybook/mcp`: clients
  * and downstream integrations call them by name, so they are frozen independently of the method
  * names they point at. Both adapters register from this map, and descriptions render
- * cross-references through {@link getRef}, so prose and registration cannot disagree.
+ * cross-references through {@link getRef}, so description prose and registration cannot disagree.
  */
 export const MCP_TOOL_NAMES = {
   'stories.preview': 'preview-stories',

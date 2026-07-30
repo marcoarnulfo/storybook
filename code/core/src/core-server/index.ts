@@ -74,7 +74,6 @@ export { createDocsToolset } from '../shared/open-service/toolsets/docs/definiti
 export type { DocsAccess, ResolvedDocsEntry } from '../shared/open-service/toolsets/docs/access.ts';
 export { createServiceDocsAccess } from '../shared/open-service/toolsets/docs/access-service.ts';
 export { createManifestDocsAccess } from '../shared/open-service/toolsets/docs/access-manifest.ts';
-export { createMultiSourceDocsAccess } from '../shared/open-service/toolsets/docs/access-multi-source.ts';
 export { createStoriesToolset } from '../shared/open-service/toolsets/stories/definition.ts';
 export type { PreviewStoriesOutput } from '../shared/open-service/toolsets/stories/definition.ts';
 export { reviewToolset } from '../shared/open-service/toolsets/review/definition.ts';

@@ -23,6 +23,7 @@ import {
   addGetUIBuildingInstructionsTool,
 } from './get-storybook-story-instructions.ts';
 import { MCP_TOOL_NAMES } from 'storybook/open-service';
+import { GET_UI_BUILDING_INSTRUCTIONS_TOOL_NAME } from './tool-names.ts';
 import { resolveReviewOrigin } from './review-origin.ts';
 import {
   getToolsetToolMetadata,
@@ -165,9 +166,16 @@ const docsShowOptions: ToolsetToolOptions = {
 const docsShowStoryOptions: ToolsetToolOptions = {
   method: 'docs.showStory',
   telemetryToolset: 'docs',
+  // A missed component and a missed story name are both error results.
   resultIsError: (data) => {
-    const { entry } = data as { entry?: { kind: string } };
-    return entry === undefined || entry.kind !== 'component';
+    const { entry, storyName } = data as {
+      entry?: { kind: string; component?: { stories?: Array<{ name: string }> } };
+      storyName: string;
+    };
+    if (entry === undefined || entry.kind !== 'component') {
+      return true;
+    }
+    return !entry.component?.stories?.some((story) => story.name === storyName);
   },
 };
 
@@ -181,7 +189,7 @@ const addonToolDefinitions: AddonToolDefinition[] = [
     },
   }),
   {
-    name: 'get-storybook-story-instructions',
+    name: GET_UI_BUILDING_INSTRUCTIONS_TOOL_NAME,
     toolset: 'dev',
     getMetadata: ({ availability, toolsets }) => {
       const testToolsetAvailable = isToolsetEnabled('test', toolsets) && availability.testSupported;

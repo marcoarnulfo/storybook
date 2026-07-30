@@ -17,36 +17,3 @@ export type DocsClassification = {
  * Visibility intentionally follows composed service payloads because this API has no story-index
  * dependency with which to reapply manifest filtering.
  */
-export function classifyServices({
-  allDocgen,
-  allStoryDocs,
-  allMdx,
-}: {
-  allDocgen: Record<string, DocgenPayload | undefined>;
-  allStoryDocs: Record<string, StoryDocsPayload | undefined>;
-  allMdx: Record<string, MdxPayload | undefined>;
-}): DocsClassification {
-  const storyBasedIds = new Set(Object.keys(allStoryDocs));
-  const unattachedDocs = new Map<string, string>();
-  const attachedDocsByComponent = new Map<string, string[]>();
-  const componentIds = new Set([...Object.keys(allDocgen), ...Object.keys(allStoryDocs)]);
-
-  for (const [id, payload] of Object.entries(allMdx)) {
-    if (!payload) {
-      continue;
-    }
-    if (payload.docs[id]) {
-      unattachedDocs.set(id, payload.docs[id].name);
-      continue;
-    }
-    componentIds.add(id);
-    attachedDocsByComponent.set(id, Object.keys(payload.docs));
-  }
-
-  return {
-    componentIds: [...componentIds].sort(),
-    storyBasedIds,
-    unattachedDocs,
-    attachedDocsByComponent,
-  };
-}

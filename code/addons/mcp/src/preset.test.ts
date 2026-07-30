@@ -4,7 +4,7 @@ import { experimental_devServer } from './preset.ts';
 import * as mcpHandlerModule from './mcp-handler.ts';
 import * as runStoryTests from './utils/addon-vitest.ts';
 import * as moduleGraph from './utils/module-graph.ts';
-import { registerCoreToolsetsForTest } from './tools/toolset-fixtures.ts';
+import { registerCoreToolsetsForTest } from './test-support/register-core-toolsets.ts';
 
 describe('experimental_devServer', () => {
   let mockApp: any;
