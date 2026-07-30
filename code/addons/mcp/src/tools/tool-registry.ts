@@ -159,11 +159,16 @@ const docsShowOptions: ToolsetToolOptions = {
       resultTokenCount: estimateTokens(text),
     },
   }),
+  resultIsError: (data) => (data as { entry?: unknown }).entry === undefined,
 };
 
 const docsShowStoryOptions: ToolsetToolOptions = {
   method: 'docs.showStory',
   telemetryToolset: 'docs',
+  resultIsError: (data) => {
+    const { entry } = data as { entry?: { kind: string } };
+    return entry === undefined || entry.kind !== 'component';
+  },
 };
 
 const addonToolDefinitions: AddonToolDefinition[] = [

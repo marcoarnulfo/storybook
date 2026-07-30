@@ -78,10 +78,7 @@ function runPreview(
   ctx: ToolsetCtx = cliCtx,
   target: StoriesToolset = toolset
 ) {
-  return target.methods.preview.handler(
-    v.parse(target.methods.preview.schema, { stories }),
-    ctx
-  );
+  return target.methods.preview.handler(v.parse(target.methods.preview.schema, { stories }), ctx);
 }
 
 function runChanged(ctx: ToolsetCtx = cliCtx, target: StoriesToolset = toolset) {
@@ -464,8 +461,8 @@ Do not end visual work or browse requests with these links — publish a curated
     expect(
       resolveToolsetDescription(withReviews.methods.findByComponent.description, mcpCtx)
     ).toContain('hand these to preview-stories or display-review');
-    expect(resolveToolsetDescription(toolset.methods.findByComponent.description, mcpCtx)).toContain(
-      'hand these to preview-stories instead of guessing'
-    );
+    expect(
+      resolveToolsetDescription(toolset.methods.findByComponent.description, mcpCtx)
+    ).toContain('hand these to preview-stories instead of guessing');
   });
 });

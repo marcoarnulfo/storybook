@@ -186,9 +186,7 @@ Two things you must do now, both of them:
       );
 
       expect(description).toContain('Start from `npx storybook tools stories changed`');
-      expect(description).toContain(
-        'fall back to `npx storybook tools stories find-by-component`'
-      );
+      expect(description).toContain('fall back to `npx storybook tools stories find-by-component`');
     });
   });
 });

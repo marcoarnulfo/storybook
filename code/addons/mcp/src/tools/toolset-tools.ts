@@ -54,6 +54,11 @@ export type ToolsetToolOptions = {
     event: string;
     payload: Record<string, unknown>;
   };
+  /**
+   * Marks the result as an MCP error from the returned data. Some contracts (the docs tools'
+   * not-found responses) report failure without throwing, so the flag cannot come from a catch.
+   */
+  resultIsError?: (data: unknown) => boolean;
 };
 
 function resolveMethod(method: ToolsetMethodRef): ToolsetMethod<any, any> {
@@ -114,16 +119,22 @@ export async function callToolsetMethod(
   try {
     const data = await method.handler(input as never, ctx);
     const structuredContent = await toStructuredContent(method.outputSchema, data);
-    const text = method.format(data as never, ctx);
+    const formatted = method.format(data as never, ctx);
+    const blocks = Array.isArray(formatted) ? formatted : [formatted];
 
     if (options.resultTelemetry && !server.ctx.custom?.disableTelemetry) {
-      const { event, payload } = options.resultTelemetry({ input, data, text });
+      const { event, payload } = options.resultTelemetry({
+        input,
+        data,
+        text: blocks.join('\n'),
+      });
       await collectTelemetry({ event, server, toolset: options.telemetryToolset, ...payload });
     }
 
     return {
-      content: [{ type: 'text', text }],
+      content: blocks.map((text) => ({ type: 'text' as const, text })),
       ...(structuredContent ? { structuredContent } : {}),
+      ...(options.resultIsError?.(data) ? { isError: true } : {}),
     };
   } catch (error) {
     // This one is written for the agent that triggered the lookup and names its own recovery, so

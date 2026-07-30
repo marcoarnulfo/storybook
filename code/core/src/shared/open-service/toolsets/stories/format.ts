@@ -55,8 +55,10 @@ export function formatPreviewStories(
   data: PreviewStoriesOutput,
   ctx: ToolsetCtx,
   options: { reviewEnabled?: boolean } = {}
-): string {
-  return formatPreviewStoryBlocks(data, ctx, options).join('\n');
+): string | string[] {
+  const blocks = formatPreviewStoryBlocks(data, ctx, options);
+  // MCP renders one text block per URL; the CLI list reads better as one joined document.
+  return ctx.consumer === 'mcp' ? blocks : blocks.join('\n');
 }
 
 const BANNER_INLINE_LIMIT = 3;

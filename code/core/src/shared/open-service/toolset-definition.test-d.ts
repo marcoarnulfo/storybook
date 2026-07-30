@@ -52,10 +52,8 @@ describe('defineToolset types', () => {
   it('types format input from the handler return type', () => {
     const greetFormat: (data: { greeting: string }, context: ToolsetCtx) => string =
       exampleToolset.methods.greet.format;
-    const createFormat: (
-      data: { title: string; origin?: string },
-      context: ToolsetCtx
-    ) => string = reviewToolset.methods.create.format;
+    const createFormat: (data: { title: string; origin?: string }, context: ToolsetCtx) => string =
+      reviewToolset.methods.create.format;
 
     expectTypeOf(greetFormat).toBeFunction();
     expectTypeOf(createFormat).toBeFunction();

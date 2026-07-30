@@ -46,6 +46,9 @@ export type ToolsetMethodDescription = string | ((context: ToolsetCtx) => string
  * `handler` produces data and owns side effects and telemetry; `format` renders that data as the
  * text a consumer shows. They are separate because one MCP response carries both at once —
  * `content` (text) and `structuredContent` (JSON) — and a single method run must produce both.
+ *
+ * `format` may return multiple strings: MCP renders each as its own text block, the CLI joins them
+ * with newlines.
  */
 export type ToolsetMethod<TSchema extends AnySchema = AnySchema, TOutput = unknown> = {
   description: ToolsetMethodDescription;
@@ -53,7 +56,7 @@ export type ToolsetMethod<TSchema extends AnySchema = AnySchema, TOutput = unkno
   /** Published as the MCP tool's `outputSchema`. Declare it only where the JSON is contractual. */
   outputSchema?: AnySchema;
   handler: (input: StandardSchemaV1.InferOutput<TSchema>, context: ToolsetCtx) => TOutput;
-  format: (data: Awaited<TOutput>, context: ToolsetCtx) => string;
+  format: (data: Awaited<TOutput>, context: ToolsetCtx) => string | string[];
 };
 
 // `any` permits a heterogeneous method map. Each individual method remains typed by `defineToolset`.
@@ -83,17 +86,21 @@ type MethodContracts<TMethods extends ToolsetMethods> = {
       input: StandardSchemaV1.InferOutput<TMethods[TKey]['schema']>,
       context: ToolsetCtx
     ) => unknown;
-    format: (data: Awaited<ReturnType<TMethods[TKey]['handler']>>, context: ToolsetCtx) => string;
+    format: (
+      data: Awaited<ReturnType<TMethods[TKey]['handler']>>,
+      context: ToolsetCtx
+    ) => string | string[];
   };
 };
 
-export function defineToolset<const TId extends string, const TMethods extends ToolsetMethods>(
-  definition: {
-    id: TId;
-    description: string;
-    methods: TMethods & MethodContracts<TMethods>;
-  }
-): ToolsetDefinition<TId, TMethods> {
+export function defineToolset<
+  const TId extends string,
+  const TMethods extends ToolsetMethods,
+>(definition: {
+  id: TId;
+  description: string;
+  methods: TMethods & MethodContracts<TMethods>;
+}): ToolsetDefinition<TId, TMethods> {
   return definition;
 }
 
