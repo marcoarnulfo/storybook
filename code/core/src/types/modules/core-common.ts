@@ -445,7 +445,12 @@ export interface ComponentsManifest {
   v: number;
   components: Record<string, ComponentManifest>;
   meta?: {
-    docgen: 'react-docgen' | 'react-docgen-typescript' | 'react-component-meta';
+    /** Renderer-supplied engine id, shown as a label by the components HTML debugger. */
+    docgen:
+      | 'react-docgen'
+      | 'react-docgen-typescript'
+      | 'react-component-meta'
+      | 'vue-component-meta';
     durationMs: number;
   };
 }
