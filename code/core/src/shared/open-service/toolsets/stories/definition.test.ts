@@ -187,29 +187,29 @@ describe('stories.preview', () => {
       );
     });
 
-    it('returns bare URLs for MCP', async () => {
+    it('returns one text block per URL for MCP', async () => {
       const data = await runPreview([{ storyId: 'button--primary' }]);
 
-      expect(toolset.methods.preview.format(data, mcpCtx)).toBe(previewUrl);
+      expect(toolset.methods.preview.format(data, mcpCtx)).toEqual([previewUrl]);
     });
 
     it('appends a review nudge for MCP once a URL resolved and reviews exist', async () => {
       const withReviews = createToolset({ reviewEnabled: true });
       const data = await runPreview([{ storyId: 'button--primary' }], mcpCtx, withReviews);
 
-      expect(withReviews.methods.preview.format(data, mcpCtx)).toBe(
-        `${previewUrl}
-These preview links are for iterating or sharing a specific story — they are not how visual work or a browse request ends. The display-review tool is available in this session: if you are finishing visually observable work or showing a set of stories, publish the review with **display-review** and link that instead.`
-      );
+      expect(withReviews.methods.preview.format(data, mcpCtx)).toEqual([
+        previewUrl,
+        'These preview links are for iterating or sharing a specific story — they are not how visual work or a browse request ends. The display-review tool is available in this session: if you are finishing visually observable work or showing a set of stories, publish the review with **display-review** and link that instead.',
+      ]);
     });
 
     it('leaves an all-error result unnudged, since there is nothing to curate', async () => {
       const withReviews = createToolset({ reviewEnabled: true });
       const data = await runPreview([{ storyId: 'gone--story' }], mcpCtx, withReviews);
 
-      expect(withReviews.methods.preview.format(data, mcpCtx)).toBe(
-        'No story found for story ID "gone--story"'
-      );
+      expect(withReviews.methods.preview.format(data, mcpCtx)).toEqual([
+        'No story found for story ID "gone--story"',
+      ]);
     });
   });
 });
