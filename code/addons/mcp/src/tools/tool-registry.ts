@@ -6,6 +6,7 @@ import {
   createDocsToolset,
   isDocsShowError,
   isDocsShowStoryError,
+  type DocsListOutput,
   type DocsToolset,
 } from 'storybook/internal/toolsets-docs';
 import type { AddonContext } from '../types.ts';
@@ -120,26 +121,27 @@ function fromToolset(
   };
 }
 
-type DocsListOutput = {
-  manifests: {
-    componentManifest: { components: Record<string, unknown> };
-    docsManifest?: { docs: Record<string, unknown> };
-  };
-};
-
 /** Docs telemetry keeps its historical payload, including the rendered-text token estimate. */
 const docsListOptions: ToolsetToolOptions = {
   method: 'docs.list',
   telemetryToolset: 'docs',
   resultTelemetry: ({ data, text }) => {
-    const { manifests } = data as DocsListOutput;
+    const { manifests, sources } = data as DocsListOutput;
+    // In a composition the counts describe the first source that produced a listing, and the
+    // event is skipped entirely when none did — a listing of nothing but errors is not a usage
+    // signal. Single-source runs have no sources array and report their own manifests.
+    const counted = manifests ?? sources?.find((source) => source.manifests)?.manifests;
+    if (!counted) {
+      return undefined;
+    }
+
     return {
       event: 'tool:listAllDocumentation',
       payload: {
-        componentCount: Object.keys(manifests.componentManifest.components).length,
-        docsCount: Object.keys(manifests.docsManifest?.docs ?? {}).length,
+        componentCount: Object.keys(counted.componentManifest.components).length,
+        docsCount: Object.keys(counted.docsManifest?.docs ?? {}).length,
         resultTokenCount: estimateTokens(text),
-        sourceCount: undefined,
+        sourceCount: sources?.length,
       },
     };
   },

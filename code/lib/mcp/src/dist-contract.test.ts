@@ -24,7 +24,18 @@ const DIST_ENTRY = join(import.meta.dirname, '../dist/index.js');
  */
 const SIZE_BUDGET_BYTES = 80_000;
 
+/**
+ * The dist-reading assertions are skipped on a working copy that has not been built, which would
+ * make them pass vacuously in CI — where a build always precedes the tests. So there, its absence
+ * is the failure.
+ */
+const DIST_BUILT = existsSync(DIST_ENTRY);
+
 describe('published package contract', () => {
+  it.runIf(process.env.CI)('is built before this suite runs', () => {
+    expect(DIST_BUILT).toBe(true);
+  });
+
   it('declares no runtime dependency on storybook', () => {
     const manifest = packageJson as {
       dependencies?: Record<string, string>;
@@ -37,13 +48,13 @@ describe('published package contract', () => {
     expect(Object.keys(manifest.devDependencies ?? {})).toContain('storybook');
   });
 
-  it.runIf(existsSync(DIST_ENTRY))('bundles what it imports from storybook', () => {
+  it.runIf(DIST_BUILT)('bundles what it imports from storybook', () => {
     expect(readFileSync(DIST_ENTRY, 'utf-8')).not.toMatch(
       /from\s*["']storybook\/|require\(["']storybook\//
     );
   });
 
-  it.runIf(existsSync(DIST_ENTRY))('stays within its size budget', () => {
+  it.runIf(DIST_BUILT)('stays within its size budget', () => {
     expect(statSync(DIST_ENTRY).size).toBeLessThan(SIZE_BUDGET_BYTES);
   });
 });

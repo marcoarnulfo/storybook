@@ -51,12 +51,14 @@ export type ToolsetToolOptions = {
   /**
    * Telemetry computed from the finished result. Most methods report from their handler via
    * `ctx.telemetry`; the docs events also carry a token estimate of the rendered text, which only
-   * exists here in the adapter.
+   * exists here in the adapter. Returning nothing reports no event, which is how a listing that
+   * produced no readable source stays out of the counts.
    */
-  resultTelemetry?: (result: { input: unknown; data: unknown; text: string }) => {
-    event: string;
-    payload: Record<string, unknown>;
-  };
+  resultTelemetry?: (result: {
+    input: unknown;
+    data: unknown;
+    text: string;
+  }) => { event: string; payload: Record<string, unknown> } | undefined;
   /**
    * Marks the result as an MCP error from the returned data. Some contracts (the docs tools'
    * not-found responses) report failure without throwing, so the flag cannot come from a catch.
@@ -135,12 +137,11 @@ export async function callToolsetMethod(
     const blocks = Array.isArray(formatted) ? formatted : [formatted];
 
     if (options.resultTelemetry && !server.ctx.custom?.disableTelemetry) {
-      const { event, payload } = options.resultTelemetry({
-        input,
-        data,
-        text: blocks.join('\n'),
-      });
-      await collectTelemetry({ event, server, toolset: options.telemetryToolset, ...payload });
+      const reported = options.resultTelemetry({ input, data, text: blocks.join('\n') });
+      if (reported) {
+        const { event, payload } = reported;
+        await collectTelemetry({ event, server, toolset: options.telemetryToolset, ...payload });
+      }
     }
 
     return {

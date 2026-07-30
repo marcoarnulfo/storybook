@@ -13,6 +13,7 @@ import type { GenericSchema } from 'valibot';
 import {
   createDocsToolset,
   createProviderDocsAccess,
+  emptyManifests,
   isDocsShowError,
   isDocsShowStoryError,
   MCP_TOOL_NAMES,
@@ -85,10 +86,7 @@ function toolsetFor(context: StorybookContext | undefined): DocsToolset {
  * are static, and only `multiSource` changes them.
  */
 function metadataToolset(multiSource: boolean): DocsToolset {
-  const unavailable = {
-    list: async () => ({ componentManifest: { v: 1 as const, components: {} } }),
-    resolve: async () => undefined,
-  };
+  const unavailable = { list: async () => emptyManifests(), resolve: async () => undefined };
   return multiSource
     ? createDocsToolset({
         sources: [{ source: { id: 'local', title: 'Local' }, access: unavailable }],

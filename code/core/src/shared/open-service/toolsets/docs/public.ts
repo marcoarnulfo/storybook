@@ -11,6 +11,7 @@ export type { ToolsetMethodRef } from '../../toolset-names.ts';
 export { resolveToolsetDescription } from '../../toolset-definition.ts';
 export type { ToolsetCtx } from '../../toolset-definition.ts';
 export { DOCS_TOOLSET_INSTRUCTIONS } from './instructions.ts';
+export { emptyManifests } from './access.ts';
 export type { DocsAccess, ResolvedDocsEntry } from './access.ts';
 export { createDocsToolset, isDocsShowError, isDocsShowStoryError } from './definition.ts';
 export type {

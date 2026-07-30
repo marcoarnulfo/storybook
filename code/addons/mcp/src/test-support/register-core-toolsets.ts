@@ -13,6 +13,7 @@ import {
   createDocsToolset,
   createStoriesToolset,
   createTestToolset,
+  emptyManifests,
   registerToolset,
   reviewToolset,
 } from 'storybook/internal/core-server';
@@ -48,10 +49,7 @@ export function registerCoreToolsetsForTest({
   );
   registerToolset(
     createDocsToolset({
-      docsAccess: {
-        list: async () => ({ componentManifest: { v: 1, components: {} } }),
-        resolve: async () => undefined,
-      },
+      docsAccess: { list: async () => emptyManifests(), resolve: async () => undefined },
     })
   );
 }

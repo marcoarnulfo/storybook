@@ -71,6 +71,7 @@ export type {
   TestToolset,
 } from '../shared/open-service/toolsets/test/definition.ts';
 export { createDocsToolset } from '../shared/open-service/toolsets/docs/definition.ts';
+export { emptyManifests } from '../shared/open-service/toolsets/docs/access.ts';
 export type { DocsAccess, ResolvedDocsEntry } from '../shared/open-service/toolsets/docs/access.ts';
 export { createServiceDocsAccess } from '../shared/open-service/toolsets/docs/access-service.ts';
 export { createManifestDocsAccess } from '../shared/open-service/toolsets/docs/access-manifest.ts';
