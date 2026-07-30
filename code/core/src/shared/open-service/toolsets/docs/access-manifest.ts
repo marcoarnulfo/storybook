@@ -14,10 +14,13 @@
 import { emptyManifests, type DocsAccess, type ResolvedDocsEntry } from './access.ts';
 import type {
   AllManifests,
-  ComponentManifestEntry,
+  ComponentManifest,
   ComponentManifestMap,
-  DocEntry,
+  ComponentManifestV0,
+  ComponentManifestV1,
   DocsManifestMap,
+  DocV0,
+  DocV1,
 } from './manifest-formatter/manifest-types.ts';
 
 /** The manifests as they leave core's manifest builder, before any shape is assumed. */
@@ -43,16 +46,18 @@ function toComponentManifest(value: unknown): ComponentManifestMap | undefined {
   if (!isRecord(value) || !isRecord(value.components)) {
     return undefined;
   }
-  const components = value.components as Record<string, ComponentManifestEntry>;
-  return isShallow(value) ? { v: 1, components } : { v: 0, components };
+  return isShallow(value)
+    ? { v: 1, components: value.components as Record<string, ComponentManifestV1> }
+    : { v: 0, components: value.components as Record<string, ComponentManifestV0> };
 }
 
 function toDocsManifest(value: unknown): DocsManifestMap | undefined {
   if (!isRecord(value) || !isRecord(value.docs)) {
     return undefined;
   }
-  const docs = value.docs as Record<string, DocEntry>;
-  return isShallow(value) ? { v: 1, docs } : { v: 0, docs };
+  return isShallow(value)
+    ? { v: 1, docs: value.docs as Record<string, DocV1> }
+    : { v: 0, docs: value.docs as Record<string, DocV0> };
 }
 
 /**
@@ -63,7 +68,9 @@ function withoutStories(manifest: ComponentManifestMap): ComponentManifestMap {
   const components = Object.fromEntries(
     Object.entries(manifest.components).map(([id, { stories: _stories, ...rest }]) => [id, rest])
   );
-  return manifest.v === 1 ? { v: 1, components } : { v: 0, components };
+  return manifest.v === 1
+    ? { v: 1, components: components as Record<string, ComponentManifestV1> }
+    : { v: 0, components: components as Record<string, ComponentManifestV0> };
 }
 
 export function createManifestDocsAccess({ getManifests }: ManifestDocsAccessOptions): DocsAccess {
@@ -89,7 +96,12 @@ export function createManifestDocsAccess({ getManifests }: ManifestDocsAccessOpt
     async resolve(id): Promise<ResolvedDocsEntry | undefined> {
       const raw = await getManifests();
 
-      const component = toComponentManifest(raw.components)?.components[id];
+      // Cast: these manifests are inline, so a row is already the resolved shape. A shallow row
+      // could only appear in docgen-server mode, which `createServiceDocsAccess` serves instead;
+      // if one did, its `$ref`s would simply not render, as before.
+      const component = toComponentManifest(raw.components)?.components[id] as
+        | ComponentManifest
+        | undefined;
       if (component) {
         return { kind: 'component', component };
       }

@@ -3,7 +3,7 @@ import legacyDevInstructions from './legacy-dev-instructions.md';
 import legacyTestInstructions from './legacy-test-instructions.md';
 import reviewDocsInstructions from './review-docs-instructions.md';
 import testInstructions from './test-instructions.md';
-import { STORYBOOK_MCP_INSTRUCTIONS } from '@storybook/mcp';
+import { DOCS_TOOLSET_INSTRUCTIONS as STORYBOOK_MCP_INSTRUCTIONS } from 'storybook/internal/toolsets-docs';
 
 export type BuildServerInstructionsOptions = {
   devEnabled: boolean;
@@ -93,7 +93,7 @@ export function buildServerInstructions(options: BuildServerInstructionsOptions)
   // with review off (the default) they are the shipping texts — the legacy
   // Validation Workflow from the latest release (plus the run-story-tests-only
   // rule added after agents substituted `npm run test:stories`, run
-  // 28673251562), and the shared @storybook/mcp Documentation Workflow. With
+  // 28673251562), and the shared docs-toolset Documentation Workflow. With
   // review on, the whole
   // instruction set must fit under the 2,048-char client truncation limit
   // alongside the review workflow, so slimmed variants (same rules, terser

@@ -6,7 +6,11 @@
  * MCP clients like VS Code to handle the OAuth flow with Chromatic.
  */
 
-import { ComponentManifestMap, DocsManifestMap, type Source } from '@storybook/mcp';
+import {
+  ComponentManifestMap,
+  DocsManifestMap,
+  type Source,
+} from 'storybook/internal/toolsets-docs';
 import { logger } from 'storybook/internal/node-logger';
 import * as v from 'valibot';
 

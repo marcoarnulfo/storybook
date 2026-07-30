@@ -14,12 +14,14 @@ import {
   adaptCoreComponent,
   adaptCoreDoc,
   type CoreDocgenComponent,
-  type CoreDocgenPayload,
-  type CoreMdxDoc,
   type Doc,
-  type ResolvedEntry,
+  type ResolvedDocsEntry as ResolvedEntry,
   type Source,
-} from '@storybook/mcp';
+} from 'storybook/internal/toolsets-docs';
+
+/** The docgen service payload for one component, and the MDX service payload for one doc. */
+type CoreDocgenPayload = Omit<CoreDocgenComponent, 'id' | 'name'>;
+type CoreMdxDoc = Doc;
 
 import { getStoryIndex } from '../utils/get-story-index.ts';
 import {

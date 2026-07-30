@@ -51,7 +51,7 @@ describe('docs.list', () => {
   it('returns the manifests from the access and renders the list Markdown', async () => {
     const data = await toolset.methods.list.handler({ withStoryIds: false });
 
-    expect(Object.keys(data.manifests.componentManifest.components)).toEqual(['button']);
+    expect(Object.keys(data.manifests!.componentManifest.components)).toEqual(['button']);
 
     const text = toolset.methods.list.format(data);
     expect(text).toContain('button');
@@ -77,21 +77,21 @@ describe('docs.list', () => {
 
 describe('docs.show', () => {
   it('renders component documentation for a known component id', async () => {
-    const data = await toolset.methods.show.handler({ id: 'button' });
+    const data = await toolset.methods.show.handler({ id: 'button' }, mcpCtx);
 
     expect(data.entry?.kind).toBe('component');
     expect(toolset.methods.show.format(data, mcpCtx)).toContain('Button');
   });
 
   it('renders standalone docs entries', async () => {
-    const data = await toolset.methods.show.handler({ id: 'guide--docs' });
+    const data = await toolset.methods.show.handler({ id: 'guide--docs' }, mcpCtx);
 
     expect(data.entry?.kind).toBe('doc');
     expect(toolset.methods.show.format(data, mcpCtx)).toContain('Guide');
   });
 
   it('answers unknown ids with the @storybook/mcp miss message on MCP', async () => {
-    const data = await toolset.methods.show.handler({ id: 'nope' });
+    const data = await toolset.methods.show.handler({ id: 'nope' }, mcpCtx);
 
     expect(data.entry).toBeUndefined();
     expect(toolset.methods.show.format(data, mcpCtx)).toBe(
@@ -105,19 +105,25 @@ describe('docs.show', () => {
 
 describe('docs.showStory', () => {
   it('renders the story documentation for a known story name', async () => {
-    const data = await toolset.methods.showStory.handler({
-      componentId: 'button',
-      storyName: 'Primary',
-    });
+    const data = await toolset.methods.showStory.handler(
+      {
+        componentId: 'button',
+        storyName: 'Primary',
+      },
+      mcpCtx
+    );
 
     expect(toolset.methods.showStory.format(data, mcpCtx)).toContain('<Button />');
   });
 
   it('lists available stories when the story name misses', async () => {
-    const data = await toolset.methods.showStory.handler({
-      componentId: 'button',
-      storyName: 'Missing',
-    });
+    const data = await toolset.methods.showStory.handler(
+      {
+        componentId: 'button',
+        storyName: 'Missing',
+      },
+      mcpCtx
+    );
 
     expect(toolset.methods.showStory.format(data, mcpCtx)).toBe(
       'Story "Missing" not found for component "button". Available stories: Primary'
@@ -125,10 +131,13 @@ describe('docs.showStory', () => {
   });
 
   it('answers unknown components with the miss message per consumer', async () => {
-    const data = await toolset.methods.showStory.handler({
-      componentId: 'nope',
-      storyName: 'Primary',
-    });
+    const data = await toolset.methods.showStory.handler(
+      {
+        componentId: 'nope',
+        storyName: 'Primary',
+      },
+      mcpCtx
+    );
 
     expect(toolset.methods.showStory.format(data, mcpCtx)).toBe(
       'Component not found: "nope". Use the list-all-documentation tool to see available components.'

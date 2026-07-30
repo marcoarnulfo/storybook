@@ -16,8 +16,13 @@ import packageJson from '../package.json' with { type: 'json' };
 
 const DIST_ENTRY = join(import.meta.dirname, '../dist/index.js');
 
-/** Headroom over the current size, so ordinary edits pass but a bundling regression does not. */
-const SIZE_BUDGET_BYTES = 60_000;
+/**
+ * Headroom over the current size, so ordinary edits pass but a bundling regression does not.
+ *
+ * The budget stepped up when this package moved from shipping its own docs tools to bundling
+ * Storybook's shared docs toolset — the engine it used to duplicate now arrives from core.
+ */
+const SIZE_BUDGET_BYTES = 80_000;
 
 describe('published package contract', () => {
   it('declares no runtime dependency on storybook', () => {

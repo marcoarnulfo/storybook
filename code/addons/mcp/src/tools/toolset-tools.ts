@@ -62,10 +62,21 @@ export type ToolsetToolOptions = {
    * not-found responses) report failure without throwing, so the flag cannot come from a catch.
    */
   resultIsError?: (data: unknown) => boolean;
+  /**
+   * Supplies the method instead of the registry.
+   *
+   * A composition's docs tools read state that belongs to the request being served (its manifest
+   * provider and composed sources), so their toolset is built per call rather than registered once
+   * at boot. Called without a server when only static metadata is needed.
+   */
+  resolveMethod?: (server?: Server) => ToolsetMethod<any, any>;
 };
 
-function resolveMethod(method: ToolsetMethodRef): ToolsetMethod<any, any> {
-  const [toolsetId, methodName] = method.split('.');
+function resolveMethod(options: ToolsetToolOptions, server?: Server): ToolsetMethod<any, any> {
+  if (options.resolveMethod) {
+    return options.resolveMethod(server);
+  }
+  const [toolsetId, methodName] = options.method.split('.');
   return getToolset(toolsetId).methods[methodName];
 }
 
@@ -114,7 +125,7 @@ export async function callToolsetMethod(
   options: ToolsetToolOptions,
   input: unknown
 ): Promise<StorybookAiToolCallResult> {
-  const method = resolveMethod(options.method);
+  const method = resolveMethod(options, server);
   const ctx = buildContext(server, options);
 
   try {
@@ -149,7 +160,7 @@ export async function callToolsetMethod(
 
 /** Metadata for one toolset-backed MCP tool, with the frozen name and title. */
 export function getToolsetToolMetadata(options: ToolsetToolOptions) {
-  const method = resolveMethod(options.method);
+  const method = resolveMethod(options);
   const descriptionCtx: ToolsetCtx = {
     consumer: 'mcp',
     getService: (serviceId, serviceOptions) => getService(serviceId as any, serviceOptions) as any,

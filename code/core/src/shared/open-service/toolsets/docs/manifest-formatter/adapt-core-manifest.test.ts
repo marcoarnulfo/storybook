@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { adaptCoreComponent, adaptCoreDoc, adaptCoreStories } from './adapt-core-manifest.ts';
-import type { CoreDocgenComponent } from '../types.ts';
+import type { CoreDocgenComponent } from './adapt-core-manifest.ts';
 
 describe('adaptCoreStories', () => {
   it('maps a story-docs record into a Story[]', () => {

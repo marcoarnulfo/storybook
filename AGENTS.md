@@ -122,17 +122,24 @@ AST indexing keeps the sidebar fast and prevents one broken story file from brea
   hook that only some runs reach: consumers resolve toolsets for their descriptions and schemas
   alone, including `storybook ai` metadata generation, which never starts a dev server. Whatever
   gates registration must match the gate that decides whether the tool is offered.
-- The docs toolset is runtime-agnostic behind an injected `DocsAccess` (`list` + `resolve`), so the
-  same definition serves the dev server (open services when `experimentalDocgenServer` is on, the
-  built manifests otherwise) and a hosted Storybook. A test asserts it never reaches `core-server`;
-  keep it that way.
-- `@storybook/mcp` shares core's manifest formatter through the dependency-light
-  `storybook/internal/toolsets-docs` entry, taking `storybook` as a devDependency and bundling it —
-  its published dependencies must stay free of `storybook`.
+- The docs toolset is runtime-agnostic behind an injected `DocsAccess` (`list` + `resolve`), so one
+  definition serves every runtime. Three accesses implement it: `createServiceDocsAccess` (open
+  services, when `experimentalDocgenServer` is on), `createManifestDocsAccess` (the manifests core
+  builds, the default) and `createProviderDocsAccess` (manifest files over any provider — HTTP, a
+  static bundle, an authenticated proxy — following `$ref`s and validating on arrival). A test
+  asserts the toolset never reaches `core-server`; keep it that way.
+- Composition is access *composition*, not a second implementation: `createCompositionDocsSources`
+  builds one access per source and `createDocsToolset({ sources })` adds the `storybookId` input,
+  groups the listing per source, and isolates a failing source — unless every source fails, which
+  is reported as one error instead of a page of them.
+- `@storybook/mcp` and `@storybook/addon-mcp` both register their docs tools from that toolset
+  through the dependency-light `storybook/internal/toolsets-docs` entry. `@storybook/mcp` takes
+  `storybook` as a devDependency and bundles it, so its published dependencies must stay free of
+  `storybook`; `addon-mcp` no longer depends on `@storybook/mcp` at all. A composition builds its
+  toolset per request, because the provider and sources belong to the request.
 - Toolset factories are exported from `storybook/internal/core-server`, not `storybook/open-service`:
   they reach server-only code, and the latter entry is a manager global.
-- Still open: CLI generation and `storybook tools` wiring (Milestone 5), and multi-source
-  (composition) docs tools, which still run on `@storybook/mcp`'s own implementation.
+- Still open: CLI generation and `storybook tools` wiring (Milestone 5).
 
 ## Common Commands
 

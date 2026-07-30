@@ -1,16 +1,43 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  getManifests,
-  getMultiSourceManifests,
-  ManifestGetError,
+  fetchManifests as getManifests,
   parseManifestRef,
   resolveComponentEntry,
   resolveComponentStories,
-  resolveDoc,
-  RequiresOwnMcpError,
-} from './get-manifest.ts';
-import type { ComponentManifest, ComponentManifestV1, Doc, DocV1 } from '../types.ts';
-import type { ComponentManifestMap, DocsManifestMap, Source } from '../types.ts';
+  resolveDocEntry as resolveDoc,
+} from './access-provider.ts';
+import { createCompositionDocsSources, listSources } from './multi-source.ts';
+import { ManifestGetError, RequiresOwnMcpError, type Source } from './sources.ts';
+import type {
+  ComponentManifest,
+  ComponentManifestMap,
+  ComponentManifestV1,
+  Doc,
+  DocsManifestMap,
+  DocV1,
+} from './manifest-formatter/manifest-types.ts';
+
+/**
+ * Composition listing, expressed the way the tools now reach it: one access per source, each
+ * failing independently. Mirrors the shape the previous `getMultiSourceManifests` returned.
+ */
+async function getMultiSourceManifests(
+  sources: Source[],
+  request?: Request,
+  manifestProvider?: Parameters<typeof createCompositionDocsSources>[0]['manifestProvider']
+) {
+  const listings = await listSources(
+    createCompositionDocsSources({ sources, manifestProvider, getRequest: () => request }),
+    { withStoryIds: false }
+  );
+  return listings.map(({ source, manifests, error, notice }) => ({
+    source,
+    componentManifest: manifests?.componentManifest ?? { v: 1 as const, components: {} },
+    docsManifest: manifests?.docsManifest,
+    ...(error ? { error } : {}),
+    ...(notice ? { notice } : {}),
+  }));
+}
 
 /**
  * Helper function to create a mock Request object

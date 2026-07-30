@@ -6,8 +6,13 @@
  * must stay free of Node-only and server-only imports.
  */
 
+export { MCP_TOOL_NAMES, MCP_TOOL_TITLES, getRef } from '../../toolset-names.ts';
+export type { ToolsetMethodRef } from '../../toolset-names.ts';
+export { resolveToolsetDescription } from '../../toolset-definition.ts';
+export type { ToolsetCtx } from '../../toolset-definition.ts';
+export { DOCS_TOOLSET_INSTRUCTIONS } from './instructions.ts';
 export type { DocsAccess, ResolvedDocsEntry } from './access.ts';
-export { createDocsToolset } from './definition.ts';
+export { createDocsToolset, isDocsShowError, isDocsShowStoryError } from './definition.ts';
 export type {
   CreateDocsToolsetOptions,
   DocsListOutput,
@@ -16,11 +21,40 @@ export type {
   DocsToolset,
 } from './definition.ts';
 export {
+  COMPONENT_MANIFEST_PATH,
+  createProviderDocsAccess,
+  DOCS_MANIFEST_PATH,
+  fetchManifests,
+  parseManifestRef,
+  resolveComponentEntry,
+  resolveComponentStories,
+  resolveDocEntry,
+} from './access-provider.ts';
+export type { ManifestProvider, ProviderDocsAccessOptions } from './access-provider.ts';
+export { createCompositionDocsSources } from './multi-source.ts';
+export type { CompositionDocsSourcesOptions, DocsSource } from './multi-source.ts';
+export {
+  formatRequiresOwnMcpNotice,
+  getSourceMcpEndpoint,
+  ManifestGetError,
+  RequiresOwnMcpError,
+} from './sources.ts';
+export type { RequiresOwnMcpNotice, Source, SourceListing } from './sources.ts';
+export {
   adaptCoreComponent,
   adaptCoreDoc,
   adaptCoreStories,
   type CoreDocgenComponent,
 } from './manifest-formatter/adapt-core-manifest.ts';
+export {
+  ComponentManifestMap,
+  ComponentManifestMapV0,
+  ComponentManifestMapV1,
+  DocsManifestMap,
+  DocsManifestMapV0,
+  DocsManifestMapV1,
+  JsonRef,
+} from './manifest-formatter/manifest-types.ts';
 export {
   extractDocsSummary,
   MAX_SUMMARY_LENGTH,
@@ -29,12 +63,10 @@ export type {
   AllManifests,
   ComponentManifest,
   ComponentManifestEntry,
-  ComponentManifestMap,
   ComponentManifestV0,
   ComponentManifestV1,
   Doc,
   DocEntry,
-  DocsManifestMap,
   DocV0,
   DocV1,
   ManifestError,

@@ -7,30 +7,64 @@ import {
   formatComponentManifest,
   formatDocsManifest,
   formatManifestsToLists,
+  formatMultiSourceManifestsToLists,
   formatStoryDocumentation,
   MAX_STORIES_TO_SHOW,
 } from './manifest-formatter/markdown.ts';
 import type { AllManifests } from './manifest-formatter/manifest-types.ts';
+import { listSources, resolveInSource, type DocsSource } from './multi-source.ts';
+import type { SourceListing } from './sources.ts';
 
 export type CreateDocsToolsetOptions = {
-  docsAccess: DocsAccess;
+  /** Reads the one Storybook these tools serve. Omit when `sources` is given. */
+  docsAccess?: DocsAccess;
+  /**
+   * The composed Storybooks these tools serve. When present the tools take a `storybookId`, since
+   * ids are only unique within a source.
+   */
+  sources?: DocsSource[];
 };
 
 export type DocsListOutput = {
-  manifests: AllManifests;
   withStoryIds: boolean;
+  /** Single-source listing. */
+  manifests?: AllManifests;
+  /** Per-source listings, in composition. */
+  sources?: SourceListing[];
 };
 
 export type DocsShowOutput = {
   id: string;
-  entry: ResolvedDocsEntry | undefined;
+  entry?: ResolvedDocsEntry;
+  storybookId?: string;
+  /** Set when the request named no source, or one that does not exist. */
+  sourceError?: string;
 };
 
 export type DocsShowStoryOutput = {
   componentId: string;
   storyName: string;
-  entry: ResolvedDocsEntry | undefined;
+  entry?: ResolvedDocsEntry;
+  storybookId?: string;
+  sourceError?: string;
 };
+
+/** Whether `docs.show` failed: an unusable source, or an id that resolved to nothing. */
+export function isDocsShowError({ entry, sourceError }: DocsShowOutput): boolean {
+  return sourceError !== undefined || entry === undefined;
+}
+
+/** Whether `docs.showStory` failed: an unusable source, a missing component, or a missing story. */
+export function isDocsShowStoryError({
+  entry,
+  storyName,
+  sourceError,
+}: DocsShowStoryOutput): boolean {
+  if (sourceError !== undefined || entry === undefined || entry.kind !== 'component') {
+    return true;
+  }
+  return !entry.component.stories?.some((story) => story.name === storyName);
+}
 
 function describeList(ctx: ToolsetCtx): string {
   const ref = getRef(ctx);
@@ -46,19 +80,80 @@ Example: id="button" returns Primary, Secondary, Large stories with code like <B
 }
 
 /** Not-found message for an unknown component or docs id. */
-function formatEntryNotFound(id: string, ctx: ToolsetCtx): string {
+function formatEntryNotFound(id: string, storybookId: string | undefined, ctx: ToolsetCtx): string {
+  const suffix = storybookId ? ` in source "${storybookId}"` : '';
   return ctx.consumer === 'mcp'
-    ? `Component or Docs Entry not found: "${id}". Use the ${getRef(ctx)('docs.list')} tool to see available components and documentation entries.`
-    : `Component or Docs Entry not found: "${id}".`;
+    ? `Component or Docs Entry not found: "${id}"${suffix}. Use the ${getRef(ctx)('docs.list')} tool to see available components and documentation entries.`
+    : `Component or Docs Entry not found: "${id}"${suffix}.`;
+}
+
+const storybookIdField = {
+  storybookId: v.pipe(
+    v.string(),
+    v.description('The ID of the Storybook source to query (e.g., "local", "design-system")')
+  ),
+};
+
+/**
+ * Picks the access for a lookup, or explains which source the caller should have named.
+ *
+ * In a composition the id alone is ambiguous, so a missing or unknown `storybookId` is a result the
+ * agent can act on — the available ids and where to find them — rather than a thrown error.
+ */
+function selectSource(
+  sources: DocsSource[] | undefined,
+  storybookId: string | undefined,
+  ctx: ToolsetCtx
+): { access?: DocsAccess; sourceError?: string } {
+  if (!sources?.length) {
+    return {};
+  }
+
+  const available = sources.map(({ source }) => source.id).join(', ');
+  const listRef = `Use the ${getRef(ctx)('docs.list')} tool to see available sources.`;
+
+  if (!storybookId) {
+    return { sourceError: `storybookId is required. Available sources: ${available}. ${listRef}` };
+  }
+
+  const match = sources.find(({ source }) => source.id === storybookId);
+  if (!match) {
+    return {
+      sourceError: `Storybook source not found: "${storybookId}". Available sources: ${available}. ${listRef}`,
+    };
+  }
+
+  return { access: match.access };
 }
 
 /**
  * Creates the public docs API over an injected {@link DocsAccess}.
  *
  * The toolset never reads services or manifests itself, so the same definition serves the dev
- * server (open services or the built manifests) and a hosted Storybook (remote manifest files).
+ * server (open services or the built manifests), a hosted Storybook (manifest files over any
+ * provider), and a composition of several of those.
  */
-export function createDocsToolset({ docsAccess }: CreateDocsToolsetOptions) {
+export function createDocsToolset({ docsAccess, sources }: CreateDocsToolsetOptions) {
+  const multiSource = !!sources?.length;
+
+  // A composition needs the caller to say which Storybook they mean; a single one must not ask.
+  const showSchema = multiSource
+    ? v.object({
+        id: v.pipe(v.string(), v.description('The component or docs entry ID (e.g., "button")')),
+        ...storybookIdField,
+      })
+    : v.object({
+        id: v.pipe(v.string(), v.description('The component or docs entry ID (e.g., "button")')),
+      });
+
+  const showStorySchema = multiSource
+    ? v.object({ componentId: v.string(), storyName: v.string(), ...storybookIdField })
+    : v.object({ componentId: v.string(), storyName: v.string() });
+
+  /** The access for a lookup, plus the id it was scoped to. */
+  const access = (storybookId: string | undefined, ctx: ToolsetCtx) =>
+    multiSource ? selectSource(sources, storybookId, ctx) : { access: docsAccess };
+
   return defineToolset({
     id: 'docs',
     description: 'Storybook component and docs documentation.',
@@ -76,25 +171,36 @@ export function createDocsToolset({ docsAccess }: CreateDocsToolsetOptions) {
           ),
         }),
         description: describeList,
-        handler: async (input): Promise<DocsListOutput> => ({
-          manifests: await docsAccess.list({ withStoryIds: input.withStoryIds }),
-          withStoryIds: input.withStoryIds,
-        }),
-        format: ({ manifests, withStoryIds }: DocsListOutput) =>
-          formatManifestsToLists(manifests, { withStoryIds }),
+        handler: async (input): Promise<DocsListOutput> => {
+          const { withStoryIds } = input;
+          if (multiSource) {
+            return { withStoryIds, sources: await listSources(sources!, { withStoryIds }) };
+          }
+          return { withStoryIds, manifests: await docsAccess!.list({ withStoryIds }) };
+        },
+        format: ({ manifests, sources: listings, withStoryIds }: DocsListOutput) =>
+          listings
+            ? formatMultiSourceManifestsToLists(listings, { withStoryIds })
+            : formatManifestsToLists(manifests!, { withStoryIds }),
       },
       show: {
-        schema: v.object({
-          id: v.pipe(v.string(), v.description('The component or docs entry ID (e.g., "button")')),
-        }),
+        schema: showSchema,
         description: describeShow,
-        handler: async (input): Promise<DocsShowOutput> => ({
-          id: input.id,
-          entry: await docsAccess.resolve(input.id),
-        }),
-        format: ({ id, entry }: DocsShowOutput, ctx) => {
+        handler: async (input, ctx): Promise<DocsShowOutput> => {
+          const { id, storybookId } = input as { id: string; storybookId?: string };
+          const selected = access(storybookId, ctx);
+          if (selected.sourceError) {
+            return { id, storybookId, sourceError: selected.sourceError };
+          }
+
+          return { id, storybookId, entry: await selected.access!.resolve(id) };
+        },
+        format: ({ id, entry, storybookId, sourceError }: DocsShowOutput, ctx) => {
+          if (sourceError) {
+            return sourceError;
+          }
           if (!entry) {
-            return formatEntryNotFound(id, ctx);
+            return formatEntryNotFound(id, storybookId, ctx);
           }
           return entry.kind === 'doc'
             ? formatDocsManifest(entry.doc)
@@ -102,18 +208,31 @@ export function createDocsToolset({ docsAccess }: CreateDocsToolsetOptions) {
         },
       },
       showStory: {
-        schema: v.object({
-          componentId: v.string(),
-          storyName: v.string(),
-        }),
+        schema: showStorySchema,
         description:
           'Get detailed documentation for a specific story variant of a UI component. Use this when you need to see more usage examples of a component, via the stories written for it.',
-        handler: async (input): Promise<DocsShowStoryOutput> => ({
-          componentId: input.componentId,
-          storyName: input.storyName,
-          entry: await docsAccess.resolve(input.componentId),
-        }),
-        format: ({ componentId, storyName, entry }: DocsShowStoryOutput, ctx) => {
+        handler: async (input, ctx): Promise<DocsShowStoryOutput> => {
+          const { componentId, storyName, storybookId } = input as {
+            componentId: string;
+            storyName: string;
+            storybookId?: string;
+          };
+          const selected = access(storybookId, ctx);
+          if (selected.sourceError) {
+            return { componentId, storyName, storybookId, sourceError: selected.sourceError };
+          }
+
+          return {
+            componentId,
+            storyName,
+            storybookId,
+            entry: await selected.access!.resolve(componentId),
+          };
+        },
+        format: ({ componentId, storyName, entry, sourceError }: DocsShowStoryOutput, ctx) => {
+          if (sourceError) {
+            return sourceError;
+          }
           if (!entry || entry.kind !== 'component') {
             return ctx.consumer === 'mcp'
               ? `Component not found: "${componentId}". Use the ${getRef(ctx)('docs.list')} tool to see available components.`

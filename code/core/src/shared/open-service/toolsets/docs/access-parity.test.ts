@@ -148,7 +148,7 @@ async function renderList(toolset: ReturnType<typeof createDocsToolset>, withSto
 }
 
 async function renderShow(toolset: ReturnType<typeof createDocsToolset>, id: string) {
-  return toolset.methods.show.format(await toolset.methods.show.handler({ id }), ctx);
+  return toolset.methods.show.format(await toolset.methods.show.handler({ id }, ctx), ctx);
 }
 
 describe('docs tools render the same text in both docgen modes', () => {
@@ -165,7 +165,10 @@ describe('docs tools render the same text in both docgen modes', () => {
   it('showStory', async () => {
     const render = async (toolset: ReturnType<typeof createDocsToolset>) =>
       toolset.methods.showStory.format(
-        await toolset.methods.showStory.handler({ componentId: 'button', storyName: 'Primary' }),
+        await toolset.methods.showStory.handler(
+          { componentId: 'button', storyName: 'Primary' },
+          ctx
+        ),
         ctx
       );
 

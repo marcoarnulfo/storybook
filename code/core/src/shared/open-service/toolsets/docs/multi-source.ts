@@ -1,0 +1,99 @@
+/**
+ * Composition support for the docs toolset.
+ *
+ * A composed Storybook is not a different kind of docs engine — it is several of the same one. So
+ * composition is modelled as a set of {@link DocsAccess} instances, one per source, rather than a
+ * parallel implementation: whatever backs a single Storybook (manifests over HTTP, the open
+ * services in-process) backs one source of a composition unchanged.
+ *
+ * The two things composition does add are per-source failure isolation when listing, and routing a
+ * lookup to the source the caller named.
+ */
+
+import { createProviderDocsAccess, type ManifestProvider } from './access-provider.ts';
+import type { DocsAccess, ResolvedDocsEntry } from './access.ts';
+import {
+  ManifestGetError,
+  RequiresOwnMcpError,
+  type Source,
+  type SourceListing,
+} from './sources.ts';
+
+/** One composed source and the access that reads it. */
+export type DocsSource = {
+  source: Source;
+  access: DocsAccess;
+};
+
+export type CompositionDocsSourcesOptions = {
+  sources: Source[];
+  manifestProvider?: ManifestProvider;
+  getRequest?: () => Request | undefined;
+  /** In-process resolver for the local source, used when `experimentalDocgenServer` is on. */
+  resolveEntry?: (id: string, source?: Source) => Promise<ResolvedDocsEntry | undefined>;
+};
+
+/**
+ * Builds one access per composed source.
+ *
+ * Every source — local or remote — is read through the same provider access; what differs is only
+ * which source the provider is handed, which is what lets a composition reuse the single-Storybook
+ * implementation rather than a parallel one.
+ */
+export function createCompositionDocsSources({
+  sources,
+  manifestProvider,
+  getRequest,
+  resolveEntry,
+}: CompositionDocsSourcesOptions): DocsSource[] {
+  return sources.map((source) => ({
+    source,
+    access: createProviderDocsAccess({ source, manifestProvider, getRequest, resolveEntry }),
+  }));
+}
+
+/**
+ * Lists every source concurrently, turning a failure into that source's own outcome.
+ *
+ * One unreachable or private source must not cost the agent the entire listing, which is the whole
+ * reason each result is captured rather than awaited together.
+ */
+export async function listSources(
+  sources: DocsSource[],
+  options: { withStoryIds: boolean }
+): Promise<SourceListing[]> {
+  const listings = await Promise.all(
+    sources.map(async ({ source, access }): Promise<SourceListing> => {
+      try {
+        return { source, manifests: await access.list(options) };
+      } catch (error) {
+        if (error instanceof RequiresOwnMcpError) {
+          return { source, notice: { kind: 'requires-own-mcp', endpoint: error.endpoint } };
+        }
+        return { source, error: error instanceof Error ? error.message : String(error) };
+      }
+    })
+  );
+
+  // Isolation is only worth it while something still reads. If no source produced output at all,
+  // a page of repeated errors buries the reason, so report the failure itself.
+  const usable = listings.filter((listing) => !listing.error);
+  if (usable.length === 0) {
+    throw new ManifestGetError(
+      `Failed to fetch manifests from any source. Errors:\n${listings
+        .map((listing) => `- ${listing.source.title}: ${listing.error}`)
+        .join('\n')}`
+    );
+  }
+
+  return listings;
+}
+
+/** Resolves an id against one named source. */
+export async function resolveInSource(
+  sources: DocsSource[],
+  storybookId: string,
+  id: string
+): Promise<ResolvedDocsEntry | undefined> {
+  return sources.find((candidate) => candidate.source.id === storybookId)?.access.resolve(id);
+}

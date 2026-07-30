@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getSourceMcpEndpoint } from './requires-own-mcp.ts';
+import { getSourceMcpEndpoint } from './sources.ts';
 
 describe('getSourceMcpEndpoint', () => {
   it.each([

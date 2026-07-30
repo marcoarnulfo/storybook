@@ -2,16 +2,12 @@ import type { McpServer } from 'tmcp';
 import type { Options } from 'storybook/internal/types';
 import { logger } from 'storybook/internal/node-logger';
 import {
-  addGetDocumentationTool,
-  addGetStoryDocumentationTool,
-  addListAllDocumentationTool,
-  GET_STORY_TOOL_NAME,
-  GET_TOOL_NAME,
-  getDocumentationToolMetadata,
-  getListAllDocumentationToolMetadata,
-  getStoryDocumentationToolMetadata,
-  LIST_TOOL_NAME,
-} from '@storybook/mcp';
+  createCompositionDocsSources,
+  createDocsToolset,
+  isDocsShowError,
+  isDocsShowStoryError,
+  type DocsToolset,
+} from 'storybook/internal/toolsets-docs';
 import type { AddonContext } from '../types.ts';
 import type { ToolAvailability } from '../utils/get-tool-availability.ts';
 import { withFriendlyErrors } from '../utils/format-validation-issues.ts';
@@ -160,24 +156,64 @@ const docsShowOptions: ToolsetToolOptions = {
       resultTokenCount: estimateTokens(text),
     },
   }),
-  resultIsError: (data) => (data as { entry?: unknown }).entry === undefined,
+  resultIsError: (data) => isDocsShowError(data as never),
 };
 
 const docsShowStoryOptions: ToolsetToolOptions = {
   method: 'docs.showStory',
   telemetryToolset: 'docs',
-  // A missed component and a missed story name are both error results.
-  resultIsError: (data) => {
-    const { entry, storyName } = data as {
-      entry?: { kind: string; component?: { stories?: Array<{ name: string }> } };
-      storyName: string;
-    };
-    if (entry === undefined || entry.kind !== 'component') {
-      return true;
-    }
-    return !entry.component?.stories?.some((story) => story.name === storyName);
-  },
+  resultIsError: (data) => isDocsShowStoryError(data as never),
 };
+
+/**
+ * Builds the docs toolset for a composition.
+ *
+ * The composed sources, their manifest provider and the in-process resolver for the local source
+ * all arrive with the request, so this cannot be the toolset registered once at boot. Called
+ * without a server for metadata only, where the sources shape the schemas but nothing is fetched.
+ */
+function compositionDocsToolset(server?: McpServer<any, AddonContext>): DocsToolset {
+  const custom = server?.ctx.custom;
+  return createDocsToolset({
+    sources: createCompositionDocsSources({
+      sources: custom?.sources ?? [{ id: 'local', title: 'Local' }],
+      manifestProvider: custom?.manifestProvider,
+      getRequest: () => custom?.request,
+      resolveEntry: custom?.resolveEntry,
+    }),
+  });
+}
+
+/** The docs rows, in the two shapes the registry needs: registered toolset, or per-request one. */
+function docsRow(
+  method: 'docs.list' | 'docs.show' | 'docs.showStory',
+  options: ToolsetToolOptions
+): AddonToolDefinition {
+  const methodName = method.split('.')[1] as 'list' | 'show' | 'showStory';
+  const forContext = (context: AddonToolRegistryContext): ToolsetToolOptions =>
+    context.multiSource
+      ? {
+          ...options,
+          resolveMethod: (server) => compositionDocsToolset(server).methods[methodName],
+        }
+      : options;
+
+  return {
+    name: MCP_TOOL_NAMES[method],
+    toolset: 'docs',
+    available: ({ availability }) => availability.docsEnabled,
+    getMetadata: (context) => getToolsetToolMetadata(forContext(context)),
+    register: async (server, context, enabled) => {
+      registerToolsetTool(server, forContext(context), enabled);
+    },
+  };
+}
+
+const docsToolDefinitions: AddonToolDefinition[] = [
+  docsRow('docs.list', docsListOptions),
+  docsRow('docs.show', docsShowOptions),
+  docsRow('docs.showStory', docsShowStoryOptions),
+];
 
 const addonToolDefinitions: AddonToolDefinition[] = [
   fromToolset({
@@ -248,58 +284,9 @@ const addonToolDefinitions: AddonToolDefinition[] = [
     available: ({ availability }) => availability.testSupported,
     options: { method: 'test.run', telemetryToolset: 'test' },
   }),
-  // Single-source docs run on the core docs toolset. Composition (refs configured) keeps the
-  // `@storybook/mcp` implementation, which owns per-source fetching, auth, and `storybookId`
-  // scoping — that unification is a follow-up.
-  {
-    name: LIST_TOOL_NAME,
-    toolset: 'docs',
-    available: ({ availability }) => availability.docsEnabled,
-    getMetadata: ({ multiSource }) =>
-      multiSource ? getListAllDocumentationToolMetadata() : getToolsetToolMetadata(docsListOptions),
-    register: async (server, { multiSource }, enabled) => {
-      logger.info(
-        'Experimental components manifest feature detected - registering component tools'
-      );
-      if (multiSource) {
-        await addListAllDocumentationTool(server, enabled);
-      } else {
-        registerToolsetTool(server, docsListOptions, enabled);
-      }
-    },
-  },
-  {
-    name: GET_TOOL_NAME,
-    toolset: 'docs',
-    available: ({ availability }) => availability.docsEnabled,
-    getMetadata: ({ multiSource }) =>
-      multiSource
-        ? getDocumentationToolMetadata({ multiSource })
-        : getToolsetToolMetadata(docsShowOptions),
-    register: async (server, { multiSource }, enabled) => {
-      if (multiSource) {
-        await addGetDocumentationTool(server, enabled, { multiSource });
-      } else {
-        registerToolsetTool(server, docsShowOptions, enabled);
-      }
-    },
-  },
-  {
-    name: GET_STORY_TOOL_NAME,
-    toolset: 'docs',
-    available: ({ availability }) => availability.docsEnabled,
-    getMetadata: ({ multiSource }) =>
-      multiSource
-        ? getStoryDocumentationToolMetadata({ multiSource })
-        : getToolsetToolMetadata(docsShowStoryOptions),
-    register: async (server, { multiSource }, enabled) => {
-      if (multiSource) {
-        await addGetStoryDocumentationTool(server, enabled, { multiSource });
-      } else {
-        registerToolsetTool(server, docsShowStoryOptions, enabled);
-      }
-    },
-  },
+  // Docs run on the core docs toolset in both modes. A composition builds its toolset per request,
+  // because the sources it reads and the provider that fetches them belong to the request.
+  ...docsToolDefinitions,
 ];
 
 export function getAddonToolMetadata(context: AddonToolRegistryContext): ToolMetadata[] {

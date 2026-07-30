@@ -2,7 +2,7 @@ import { McpServer } from 'tmcp';
 import { ValibotJsonSchemaAdapter } from '@tmcp/adapter-valibot';
 import { HttpTransport } from '@tmcp/transport-http';
 import pkgJson from '../package.json' with { type: 'json' };
-import type { Source } from '@storybook/mcp';
+import type { Source } from 'storybook/internal/toolsets-docs';
 import type { Options } from 'storybook/internal/types';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { buffer } from 'node:stream/consumers';
@@ -160,30 +160,6 @@ export const mcpServerHandler = async ({
     sources,
     manifestProvider,
     resolveEntry,
-    // Telemetry handlers for component manifest tools
-    ...(!disableTelemetry && {
-      onListAllDocumentation: async ({ manifests, resultText, sources: sourceManifests }) => {
-        await collectTelemetry({
-          event: 'tool:listAllDocumentation',
-          server,
-          toolset: 'docs',
-          componentCount: Object.keys(manifests.componentManifest.components).length,
-          docsCount: Object.keys(manifests.docsManifest?.docs || {}).length,
-          resultTokenCount: estimateTokens(resultText),
-          sourceCount: sourceManifests?.length,
-        });
-      },
-      onGetDocumentation: async ({ input, foundDocumentation, resultText }) => {
-        await collectTelemetry({
-          event: 'tool:getDocumentation',
-          server,
-          toolset: 'docs',
-          componentId: input.id,
-          found: !!foundDocumentation,
-          resultTokenCount: estimateTokens(resultText ?? ''),
-        });
-      },
-    }),
   };
 
   const response = await transport!.respond(webRequest, addonContext);
