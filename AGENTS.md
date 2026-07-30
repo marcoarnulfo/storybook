@@ -118,7 +118,10 @@ AST indexing keeps the sidebar fast and prevents one broken story file from brea
   the service nor its toolset. `registerToolset` throws on a duplicate id, and `getToolset(id)`
   throws when the id is unregistered — a missing toolset must fail loudly, never silently drop a
   tool. Registration sites today: `docs`, `stories` and `review` in core's `services` hook, `test`
-  in addon-vitest's server channel.
+  in addon-vitest's. Because a missing toolset fails loudly, register from `services` and not from a
+  hook that only some runs reach: consumers resolve toolsets for their descriptions and schemas
+  alone, including `storybook ai` metadata generation, which never starts a dev server. Whatever
+  gates registration must match the gate that decides whether the tool is offered.
 - The docs toolset is runtime-agnostic behind an injected `DocsAccess` (`list` + `resolve`), so the
   same definition serves the dev server (open services when `experimentalDocgenServer` is on, the
   built manifests otherwise) and a hosted Storybook. A test asserts it never reaches `core-server`;
