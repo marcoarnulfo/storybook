@@ -32,7 +32,7 @@ export {
   resolveDocEntry,
 } from './access-provider.ts';
 export type { ManifestProvider, ProviderDocsAccessOptions } from './access-provider.ts';
-export { createCompositionDocsSources } from './multi-source.ts';
+export { createCompositionDocsSources, listSources } from './multi-source.ts';
 export type { CompositionDocsSourcesOptions, DocsSource } from './multi-source.ts';
 export {
   formatRequiresOwnMcpNotice,

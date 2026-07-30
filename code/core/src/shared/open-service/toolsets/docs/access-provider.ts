@@ -29,9 +29,13 @@ import {
   type DocEntry,
 } from './manifest-formatter/manifest-types.ts';
 import { emptyManifests, type DocsAccess, type ResolvedDocsEntry } from './access.ts';
+import { mapWithConcurrency } from './map-with-concurrency.ts';
 import { ManifestGetError, RequiresOwnMcpError, type Source } from './sources.ts';
 
 /** Where the top-level manifests live, relative to the Storybook build. */
+/** Cap on in-flight story `$ref` fetches while expanding one source's listing. */
+const STORY_REF_CONCURRENCY = 16;
+
 export const COMPONENT_MANIFEST_PATH = './manifests/components.json';
 export const DOCS_MANIFEST_PATH = './manifests/docs.json';
 
@@ -372,23 +376,33 @@ export function createProviderDocsAccess({
       const manifests = await fetchManifests(request(), manifestProvider, source);
 
       // The split/ref format keeps stories behind a `$ref`, so resolve them only when story ids
-      // were asked for and plain listing stays cheap.
+      // were asked for and plain listing stays cheap. One `$ref` per component means a large
+      // Storybook would otherwise open hundreds of connections to the host at once.
       if (withStoryIds) {
         const components = manifests.componentManifest.components as Record<
           string,
           ComponentManifestEntry
         >;
-        const resolved = await Promise.all(
-          Object.entries(components).map(
+        try {
+          const resolved = await mapWithConcurrency(
+            Object.entries(components),
+            STORY_REF_CONCURRENCY,
             async ([id, component]) =>
               [
                 id,
                 await resolveComponentStories(component, request(), manifestProvider, source),
               ] as const
-          )
-        );
-        for (const [id, component] of resolved) {
-          components[id] = component;
+          );
+          for (const [id, component] of resolved) {
+            components[id] = component;
+          }
+        } catch (error) {
+          // One composed source must not lose its whole listing because a single story `$ref` was
+          // unreachable: leave its rows unresolved instead. A single Storybook has no other source
+          // to fall back on, so there the failure is the answer.
+          if (!source) {
+            throw error;
+          }
         }
       }
 

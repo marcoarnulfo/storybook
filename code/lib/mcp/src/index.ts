@@ -39,6 +39,8 @@ export {
   resolveDocEntry as resolveDoc,
 } from 'storybook/internal/toolsets-docs';
 
+export { getMultiSourceManifests } from './utils/multi-source-manifests.ts';
+
 // Export types for reuse
 export type {
   RequiresOwnMcpNotice,
