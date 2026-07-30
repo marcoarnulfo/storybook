@@ -11707,7 +11707,6 @@ __metadata:
   dependencies:
     "@storybook/addon-a11y": "workspace:*"
     "@storybook/addon-vitest": "workspace:*"
-    "@storybook/mcp": "workspace:*"
     "@tmcp/adapter-valibot": "npm:^0.1.5"
     "@tmcp/transport-http": "npm:^0.8.5"
     picoquery: "npm:^2.5.0"
@@ -12256,7 +12255,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@storybook/mcp@workspace:*, @storybook/mcp@workspace:code/lib/mcp":
+"@storybook/mcp@workspace:code/lib/mcp":
   version: 0.0.0-use.local
   resolution: "@storybook/mcp@workspace:code/lib/mcp"
   dependencies:
