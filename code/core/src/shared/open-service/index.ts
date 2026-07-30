@@ -8,17 +8,30 @@
 export { defineService } from './service-definition.ts';
 export { seedQueryState } from './query-state.ts';
 
-export { defineToolset } from './toolset-definition.ts';
+export { defineToolset, resolveToolsetDescription } from './toolset-definition.ts';
 export type {
   AnyToolsetDefinition,
   ToolsetConsumer,
   ToolsetCtx,
   ToolsetDefinition,
-  ToolsetFormat,
   ToolsetGetService,
   ToolsetMethod,
+  ToolsetMethodDescription,
+  ToolsetTelemetry,
 } from './toolset-definition.ts';
-export { getRegisteredToolsets, registerToolset } from './toolset-registry.ts';
+export { getRef, MCP_TOOL_NAMES } from './toolset-names.ts';
+export type { ToolsetMethodRef } from './toolset-names.ts';
+export {
+  getRegisteredToolsets,
+  getToolset,
+  hasToolset,
+  registerToolset,
+} from './toolset-registry.ts';
+export type { KnownToolsets } from './toolset-types.ts';
+
+/** Exposed for addon-vitest, which owns the channel the test toolset runs on. */
+export { createTestToolset } from './toolsets/test/definition.ts';
+export type { CreateTestToolsetOptions, TestToolset } from './toolsets/test/definition.ts';
 
 export type { DocgenService } from './services/docgen/definition.ts';
 export type { DocgenPayload } from './services/docgen/types.ts';

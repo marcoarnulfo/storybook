@@ -13,6 +13,7 @@ import {
   experimental_getTestProviderStore,
 } from 'storybook/internal/core-server';
 import { logger } from 'storybook/internal/node-logger';
+import { createTestToolset, registerToolset } from 'storybook/open-service';
 import { cleanPaths, oneWayHash, sanitizeError, telemetry } from 'storybook/internal/telemetry';
 import type {
   Options,
@@ -90,6 +91,17 @@ export const experimental_serverChannel = async (channel: Channel, options: Opti
 
   const storyIndexGenerator =
     await options.presets.apply<Promise<StoryIndexGenerator>>('storyIndexGenerator');
+
+  // The test toolset lives here rather than in core because running stories needs this addon's
+  // channel protocol: registering it from here means the public `test` surface exists exactly when
+  // tests can actually run.
+  registerToolset(
+    createTestToolset({
+      channel,
+      storyIndex: { getIndex: () => storyIndexGenerator.getIndex() },
+      a11yEnabled: await options.presets.apply('isAddonA11yEnabled', false),
+    })
+  );
 
   const fsCache = createFileSystemCache({
     basePath: resolvePathInStorybookCache(ADDON_ID.replace('/', '-')),

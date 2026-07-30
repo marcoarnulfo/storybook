@@ -19,15 +19,16 @@ import { StoryIndexGenerator } from 'storybook/internal/core-server';
 import { loadCsf } from 'storybook/internal/csf-tools';
 import { logger } from 'storybook/internal/node-logger';
 import { telemetry } from 'storybook/internal/telemetry';
-import type {
-  CoreConfig,
-  DocgenProviderDescriptor,
-  Indexer,
-  Options,
-  PresetProperty,
-  PresetPropertyFn,
-  StoryDocsProvider,
-  StorybookConfigRaw,
+import {
+  CHANGE_DETECTION_STATUS_TYPE_ID,
+  type CoreConfig,
+  type DocgenProviderDescriptor,
+  type Indexer,
+  type Options,
+  type PresetProperty,
+  type PresetPropertyFn,
+  type StoryDocsProvider,
+  type StorybookConfigRaw,
 } from 'storybook/internal/types';
 
 import { OpenServiceServicesAppliedTwiceError } from '../../server-errors.ts';
@@ -36,9 +37,16 @@ import { createDocgenWorkerClient } from '../../shared/open-service/services/doc
 import { registerModuleGraphService } from '../../shared/open-service/services/module-graph/server.ts';
 import { registerReviewService } from '../../shared/open-service/services/review/server.ts';
 import { registerStoryDocsService } from '../../shared/open-service/services/story-docs/server.ts';
+import { getService } from '../../shared/open-service/server.ts';
 import { registerToolset } from '../../shared/open-service/toolset-registry.ts';
-import { docsToolset } from '../../shared/open-service/toolsets/docs/definition.ts';
+import { createManifestDocsAccess } from '../../shared/open-service/toolsets/docs/access-manifest.ts';
+import { createServiceDocsAccess } from '../../shared/open-service/toolsets/docs/access-service.ts';
+import { createDocsToolset } from '../../shared/open-service/toolsets/docs/definition.ts';
 import { reviewToolset } from '../../shared/open-service/toolsets/review/definition.ts';
+import { createStoriesToolset } from '../../shared/open-service/toolsets/stories/definition.ts';
+import { GitDiffProvider } from '../change-detection/GitDiffProvider.ts';
+import { getStatusStoreByTypeId } from '../stores/status.ts';
+import { loadManifests } from '../utils/manifests/manifests.ts';
 
 import * as pathe from 'pathe';
 import { isAbsolute, join } from 'pathe';
@@ -367,14 +375,39 @@ export const services = async (_value: void, options: Options): Promise<void> =>
     presets: options.presets,
   });
 
-  // Toolsets register imperatively alongside their services: addons contribute both from their own
-  // `services` hook. The stories and test toolsets join once their boot-time dependencies are wired
-  // (stories factory; test moves to addon-vitest).
-  registerToolset(docsToolset);
-
   const features = await options.presets.apply('features');
+  const reviewEnabled = isReviewFeatureEnabled(features);
 
-  if (isReviewFeatureEnabled(features)) {
+  // Toolsets register imperatively alongside their services: addons contribute both from their own
+  // `services` hook. The test toolset registers from addon-vitest, which owns the channel it needs.
+  const storyIndex = { getIndex: () => storyIndexGenerator.getIndex() };
+  const gitDiffProvider = new GitDiffProvider(process.cwd());
+
+  registerToolset(
+    createStoriesToolset({
+      storyIndex,
+      git: {
+        getRepoRoot: () => gitDiffProvider.getRepoRoot(),
+        getChangedFiles: () => gitDiffProvider.getChangedFiles(),
+      },
+      changeStatuses: {
+        getAll: () => getStatusStoreByTypeId(CHANGE_DETECTION_STATUS_TYPE_ID).getAll(),
+      },
+      reviewEnabled,
+    })
+  );
+
+  registerToolset(
+    createDocsToolset({
+      // Docgen-server mode moves docs data out of the served manifests and into the open services,
+      // so the toolset reads whichever one this Storybook actually populates.
+      docsAccess: features?.experimentalDocgenServer
+        ? createServiceDocsAccess({ storyIndex, getService })
+        : createManifestDocsAccess({ getManifests: () => loadManifests(options.presets) }),
+    })
+  );
+
+  if (reviewEnabled) {
     registerReviewService({
       getIndex: () => storyIndexGenerator.getIndex(),
     });

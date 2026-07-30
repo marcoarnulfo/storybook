@@ -1,9 +1,9 @@
 import * as v from 'valibot';
 
-import { defineToolset } from '../../toolset-definition.ts';
+import { defineToolset, type ToolsetCtx } from '../../toolset-definition.ts';
 import type { StoryIndexAccess } from '../stories/definition.ts';
 import { storyInputArraySchema } from '../stories/story-input.ts';
-import { formatTestRun } from './format.ts';
+import { formatTestRun, summarizeTestRun } from './format.ts';
 import { createAsyncQueue, runStoryTests, type TestChannel } from './run.ts';
 
 const errorLikeSchema: v.GenericSchema = v.object({
@@ -62,6 +62,8 @@ const testRunResultSchema = v.object({
 const testRunOutputSchema = v.variant('status', [
   v.object({
     status: v.literal('no-stories'),
+    /** Per-selector lookup failures. When nothing matched, they are the whole answer. */
+    notFoundMessages: v.array(v.string()),
   }),
   v.object({
     status: v.literal('completed'),

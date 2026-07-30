@@ -7,12 +7,6 @@ type AnySchema = StandardSchemaV1<unknown, unknown>;
 export type ToolsetConsumer = 'cli' | 'mcp';
 
 /**
- * Output representation requested by the adapter. Methods never declare the format themselves;
- * adapters own the mapping (CLI `--json` flag, MCP `json` tool input).
- */
-export type ToolsetFormat = 'markdown' | 'json';
-
-/**
  * Service lookup for toolset handlers. Intentionally not keyed to ServerCoreServices:
  * toolsets may call core OSA (with `{ internal: true }`) or optional addon services by id.
  */
@@ -20,23 +14,54 @@ export type ToolsetGetService = {
   <TInstance = unknown>(serviceId: string, options?: GetServiceOptions): TInstance;
 };
 
+/**
+ * Emits one telemetry event for a toolset method.
+ *
+ * Adapters supply the sink so surface-specific fields (MCP session id, client info) stay with the
+ * adapter while the event name and payload — the part that describes the capability — stay in the
+ * method. Absent when the consumer has telemetry disabled.
+ */
+export type ToolsetTelemetry = (event: string, payload: Record<string, unknown>) => Promise<void>;
+
 export type ToolsetCtx = {
   consumer: ToolsetConsumer;
   /** Storybook server origin. Absent when running from a CLI without a live Storybook. */
   origin?: string;
-  format: ToolsetFormat;
   getService: ToolsetGetService;
+  telemetry?: ToolsetTelemetry;
 };
 
-export type ToolsetMethod<TSchema extends AnySchema = AnySchema> = {
-  description: string;
+/**
+ * A method description, resolved per consumer.
+ *
+ * The function form exists because descriptions cross-reference sibling methods, and each surface
+ * spells those differently (`get-changed-stories` on MCP, `npx storybook tools stories changed` on
+ * the CLI). Use `getRef(ctx)` to render a reference rather than hardcoding either spelling.
+ */
+export type ToolsetMethodDescription = string | ((context: ToolsetCtx) => string);
+
+/**
+ * One public method.
+ *
+ * `handler` produces data and owns side effects and telemetry; `format` renders that data as the
+ * text a consumer shows. They are separate because one MCP response carries both at once —
+ * `content` (text) and `structuredContent` (JSON) — and a single method run must produce both.
+ */
+export type ToolsetMethod<TSchema extends AnySchema = AnySchema, TOutput = unknown> = {
+  description: ToolsetMethodDescription;
   schema: TSchema;
-  handler: (input: StandardSchemaV1.InferOutput<TSchema>, context: ToolsetCtx) => unknown;
+  /** Published as the MCP tool's `outputSchema`. Declare it only where the JSON is contractual. */
+  outputSchema?: AnySchema;
+  handler: (
+    input: StandardSchemaV1.InferOutput<TSchema>,
+    context: ToolsetCtx
+  ) => TOutput | Promise<TOutput>;
+  format: (data: Awaited<TOutput>, context: ToolsetCtx) => string;
 };
 
 // `any` permits a heterogeneous method map. Each individual method remains typed by `defineToolset`.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ToolsetMethods = Record<string, ToolsetMethod<any>>;
+type ToolsetMethods = Record<string, ToolsetMethod<any, any>>;
 
 export type ToolsetDefinition<
   TId extends string = string,
@@ -49,17 +74,29 @@ export type ToolsetDefinition<
 
 export type AnyToolsetDefinition = ToolsetDefinition;
 
-type DefinedToolsetMethods<TSchemas extends Record<string, AnySchema>> = {
-  [TKey in keyof TSchemas]: ToolsetMethod<TSchemas[TKey]>;
+type DefinedToolsetMethods<
+  TSchemas extends Record<string, AnySchema>,
+  TOutputs extends Record<keyof TSchemas, unknown>,
+> = {
+  [TKey in keyof TSchemas]: ToolsetMethod<TSchemas[TKey], TOutputs[TKey]>;
 };
 
 export function defineToolset<
   const TId extends string,
   const TSchemas extends Record<string, AnySchema>,
+  const TOutputs extends Record<keyof TSchemas, unknown>,
 >(definition: {
   id: TId;
   description: string;
-  methods: DefinedToolsetMethods<TSchemas>;
-}): ToolsetDefinition<TId, DefinedToolsetMethods<TSchemas>> {
+  methods: DefinedToolsetMethods<TSchemas, TOutputs>;
+}): ToolsetDefinition<TId, DefinedToolsetMethods<TSchemas, TOutputs>> {
   return definition;
+}
+
+/** Resolves a method description for one consumer. */
+export function resolveToolsetDescription(
+  description: ToolsetMethodDescription,
+  context: ToolsetCtx
+): string {
+  return typeof description === 'function' ? description(context) : description;
 }

@@ -356,6 +356,46 @@ export class OpenServiceServicesAppliedTwiceError extends StorybookError {
   }
 }
 
+export class OpenServiceMissingToolsetError extends StorybookError {
+  constructor(public data: { toolsetId: string }) {
+    super({
+      name: 'OpenServiceMissingToolsetError',
+      category: Category.CORE_COMMON,
+      code: 23,
+      message: `No registered toolset with id "${data.toolsetId}" exists in this environment.`,
+    });
+  }
+}
+
+export class OpenServiceDuplicateToolsetError extends StorybookError {
+  constructor(public data: { toolsetId: string }) {
+    super({
+      name: 'OpenServiceDuplicateToolsetError',
+      category: Category.CORE_COMMON,
+      code: 24,
+      message: `A toolset with id "${data.toolsetId}" is already registered. Each public toolset must be registered exactly once.`,
+    });
+  }
+}
+
+/**
+ * The story module graph cannot answer a query right now (still building, unsupported builder, or
+ * a build failure).
+ *
+ * Its `message` is written for the agent that triggered the lookup and names the recovery, so
+ * adapters surface it verbatim rather than wrapping it as an unexpected failure.
+ */
+export class OpenServiceModuleGraphUnavailableError extends StorybookError {
+  constructor(public data: { reason: string }) {
+    super({
+      name: 'OpenServiceModuleGraphUnavailableError',
+      category: Category.CORE_COMMON,
+      code: 25,
+      message: data.reason,
+    });
+  }
+}
+
 export class WebpackMissingStatsError extends StorybookError {
   constructor() {
     super({

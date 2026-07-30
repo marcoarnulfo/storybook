@@ -124,6 +124,16 @@ async function getManifests(
 }
 
 /**
+ * Loads the live manifests, the same way the dev-server manifest routes do.
+ *
+ * Exposed for the docs toolset, which reads manifest data in-process instead of fetching its own
+ * server over loopback HTTP.
+ */
+export async function loadManifests(presets: Presets) {
+  return getManifests(presets, await getManifestEntries(presets), { watch: true });
+}
+
+/**
  * Resolves the docgen `meta` for the components HTML debugger.
  *
  * `meta.docgen` (the docgen engine id) is supplied by the renderer via `experimental_manifests`;

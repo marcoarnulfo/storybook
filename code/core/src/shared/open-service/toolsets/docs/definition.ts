@@ -1,283 +1,135 @@
 import * as v from 'valibot';
 
-import { OpenServiceMissingServiceError } from '../../../../server-errors.ts';
-import type { DocgenService } from '../../services/docgen/definition.ts';
-import type { StoryDocsService } from '../../services/story-docs/definition.ts';
 import { defineToolset, type ToolsetCtx } from '../../toolset-definition.ts';
-import { classifyServices } from './classify-services.ts';
-import {
-  adaptCoreComponent,
-  adaptCoreDoc,
-  adaptCoreStories,
-} from './manifest-formatter/adapt-core-manifest.ts';
-import type {
-  AllManifests,
-  ComponentManifestV1,
-  DocV1,
-} from './manifest-formatter/manifest-types.ts';
+import { getRef } from '../../toolset-names.ts';
+import type { DocsAccess, ResolvedDocsEntry } from './access.ts';
 import {
   formatComponentManifest,
   formatDocsManifest,
   formatManifestsToLists,
   formatStoryDocumentation,
+  MAX_STORIES_TO_SHOW,
 } from './manifest-formatter/markdown.ts';
-import {
-  mapDocsList,
-  mapDocsShow,
-  mapDocsShowStory,
-  mapStoryDocsEntries,
-  resolveImportStatement,
-  type MdxPayload,
-} from './map.ts';
+import type { AllManifests } from './manifest-formatter/manifest-types.ts';
 
-/** Stable addon-docs MDX service id. Kept local so the docs toolset does not import core-server. */
-const MDX_SERVICE_ID = 'addon-docs/mdx';
-
-type MdxService = {
-  queries: {
-    mdxForAllComponents: {
-      loaded: () => Promise<Record<string, MdxPayload | undefined>>;
-    };
-    mdxForComponent: {
-      loaded: (input: { id: string }) => Promise<MdxPayload | undefined>;
-    };
-  };
+export type CreateDocsToolsetOptions = {
+  docsAccess: DocsAccess;
 };
 
-function tryGetService<T>(ctx: ToolsetCtx, serviceId: string): T | undefined {
-  try {
-    return ctx.getService<T>(serviceId, { internal: true });
-  } catch (error) {
-    if (error instanceof OpenServiceMissingServiceError) {
-      return undefined;
-    }
-    throw error;
-  }
+export type DocsListOutput = {
+  manifests: AllManifests;
+  withStoryIds: boolean;
+};
+
+export type DocsShowOutput = {
+  id: string;
+  entry: ResolvedDocsEntry | undefined;
+};
+
+export type DocsShowStoryOutput = {
+  componentId: string;
+  storyName: string;
+  entry: ResolvedDocsEntry | undefined;
+};
+
+function describeList(ctx: ToolsetCtx): string {
+  const ref = getRef(ctx);
+  return `List all available UI components and documentation entries from the Storybook, returning the IDs the other documentation tools take as input. Call this first for any UI task — before writing a new component, check what the design system already provides and build on it instead of hand-rolling a duplicate; before answering any question about props, API, or usage, discover the relevant IDs here rather than reading component source. Then fetch the entries with ${ref('docs.show')}, referencing only IDs returned here — never guess IDs. When multiple Storybook sources are configured, entries from every source are included; scope follow-up calls to one source via their \`storybookId\` input. Pass \`withStoryIds: true\` when you need story IDs for other tools.`;
 }
 
-async function loadDocsListServices(ctx: ToolsetCtx) {
-  const docgen = ctx.getService<DocgenService>('core/docgen', { internal: true });
-  const storyDocs = ctx.getService<StoryDocsService>('core/story-docs', { internal: true });
-  const mdx = tryGetService<MdxService>(ctx, MDX_SERVICE_ID);
-  const [allDocgen, allStoryDocs, allMdx] = await Promise.all([
-    docgen.queries.docgenForAllComponents.loaded(),
-    storyDocs.queries.storyDocsForAllComponents.loaded(),
-    mdx?.queries.mdxForAllComponents.loaded() ??
-      Promise.resolve({} as Record<string, MdxPayload | undefined>),
-  ]);
+function describeShow(ctx: ToolsetCtx): string {
+  return `Get documentation for a UI component or docs entry.
 
-  return {
-    allDocgen,
-    allStoryDocs,
-    allMdx,
-    classification: classifyServices({ allDocgen, allStoryDocs, allMdx }),
-  };
+Returns the first ${MAX_STORIES_TO_SHOW} stories (including story IDs) with code snippets showing how props are used, plus TypeScript prop definitions. Call this before using a component to avoid hallucinating prop names, types, or valid combinations, and to answer any question about a component's props, API, or usage — reading or grepping the component source is not a substitute. Stories reveal real prop usage patterns, interactions, and edge cases that type definitions alone don't show. If the example stories don't show the prop you need, use the ${getRef(ctx)('docs.showStory')} tool to fetch the story documentation for the specific story variant you need.
+
+Example: id="button" returns Primary, Secondary, Large stories with code like <Button variant="primary" size="large"> showing actual prop combinations.`;
 }
 
-/** Not-found message matching `@storybook/mcp`'s `get-documentation` for the MCP consumer. */
+/** Not-found message for an unknown component or docs id. */
 function formatEntryNotFound(id: string, ctx: ToolsetCtx): string {
   return ctx.consumer === 'mcp'
-    ? `Component or Docs Entry not found: "${id}". Use the list-all-documentation tool to see available components and documentation entries.`
+    ? `Component or Docs Entry not found: "${id}". Use the ${getRef(ctx)('docs.list')} tool to see available components and documentation entries.`
     : `Component or Docs Entry not found: "${id}".`;
 }
 
-export const docsToolset = defineToolset({
-  id: 'docs',
-  description: 'Storybook component and docs documentation.',
-  methods: {
-    list: {
-      schema: v.object({
-        withStoryIds: v.optional(
-          v.pipe(v.boolean(), v.description('When true, include story ids under each component.')),
-          false
-        ),
-      }),
-      description:
-        'Lists components and standalone docs entries. Optionally includes story ids per component.',
-      handler: async (input, ctx) => {
-        const { classification, allDocgen, allStoryDocs, allMdx } = await loadDocsListServices(ctx);
-
-        if (ctx.format === 'json') {
-          return mapDocsList({
-            classification,
-            allDocgen,
-            allStoryDocs,
-            allMdx,
-            withStoryIds: input.withStoryIds,
-          });
-        }
-
-        // Mirrors the manifest index addon-mcp builds in-process for `list-all-documentation`:
-        // shallow component rows, stories inlined only when story ids are requested.
-        const components: Record<string, ComponentManifestV1> = {};
-        for (const id of classification.componentIds) {
-          const payload = allDocgen[id];
-          const stories =
-            input.withStoryIds && classification.storyBasedIds.has(id)
-              ? (adaptCoreStories(allStoryDocs[id]?.stories) ?? [])
-              : undefined;
-          components[id] = {
-            id,
-            name: payload?.name ?? id,
-            ...(payload?.description !== undefined ? { description: payload.description } : {}),
-            ...(payload?.summary !== undefined ? { summary: payload.summary } : {}),
-            ...(stories ? { stories } : {}),
-          };
-        }
-
-        const docs: Record<string, DocV1> = {};
-        for (const [docId, name] of classification.unattachedDocs) {
-          const payload = allMdx[docId]?.docs?.[docId];
-          docs[docId] = {
-            id: docId,
-            name,
-            ...(payload?.summary !== undefined ? { summary: payload.summary } : {}),
-          };
-        }
-
-        const manifests: AllManifests = {
-          componentManifest: { v: 1, components },
-          ...(Object.keys(docs).length > 0 ? { docsManifest: { v: 1, docs } } : {}),
-        };
-        return formatManifestsToLists(manifests, { withStoryIds: input.withStoryIds });
+/**
+ * Creates the public docs API over an injected {@link DocsAccess}.
+ *
+ * The toolset never reads services or manifests itself, so the same definition serves the dev
+ * server (open services or the built manifests) and a hosted Storybook (remote manifest files).
+ */
+export function createDocsToolset({ docsAccess }: CreateDocsToolsetOptions) {
+  return defineToolset({
+    id: 'docs',
+    description: 'Storybook component and docs documentation.',
+    methods: {
+      list: {
+        schema: v.object({
+          withStoryIds: v.optional(
+            v.pipe(
+              v.boolean(),
+              v.description(
+                'When true, includes story sub-bullets under each component with story name and story ID. Use this to discover IDs for downstream story-focused workflows without filesystem lookup.'
+              )
+            ),
+            false
+          ),
+        }),
+        description: describeList,
+        handler: async (input): Promise<DocsListOutput> => ({
+          manifests: await docsAccess.list({ withStoryIds: input.withStoryIds }),
+          withStoryIds: input.withStoryIds,
+        }),
+        format: ({ manifests, withStoryIds }) =>
+          formatManifestsToLists(manifests, { withStoryIds }),
       },
-    },
-    show: {
-      schema: v.object({
-        id: v.pipe(v.string(), v.description('Component or docs entry id.')),
-      }),
-      description: 'Returns documentation for one component or standalone docs entry by id.',
-      handler: async (input, ctx) => {
-        const docgen = ctx.getService<DocgenService>('core/docgen', { internal: true });
-        const storyDocs = ctx.getService<StoryDocsService>('core/story-docs', { internal: true });
-        const mdx = tryGetService<MdxService>(ctx, MDX_SERVICE_ID);
-        const [docgenPayload, storyDocsPayload, mdxPayload] = await Promise.all([
-          docgen.queries.docgen.loaded({ id: input.id }),
-          storyDocs.queries.storyDocs.loaded({ id: input.id }),
-          mdx?.queries.mdxForComponent.loaded({ id: input.id }) ?? Promise.resolve(undefined),
-        ]);
-
-        const classification = classifyServices({
-          allDocgen: docgenPayload ? { [input.id]: docgenPayload } : {},
-          allStoryDocs: storyDocsPayload ? { [input.id]: storyDocsPayload } : {},
-          allMdx: mdxPayload ? { [input.id]: mdxPayload } : {},
-        });
-
-        if (ctx.format === 'json') {
-          return mapDocsShow({
-            id: input.id,
-            classification,
-            docgen: docgenPayload,
-            storyDocs: storyDocsPayload,
-            mdx: mdxPayload,
-          });
-        }
-
-        // Mirrors addon-mcp's in-process `resolveEntry`: standalone docs render through the docs
-        // formatter, components assemble docgen + story-docs + attached MDX.
-        if (classification.unattachedDocs.has(input.id)) {
-          const doc = mdxPayload?.docs?.[input.id];
-          if (!doc) {
-            return formatEntryNotFound(input.id, ctx);
+      show: {
+        schema: v.object({
+          id: v.pipe(v.string(), v.description('The component or docs entry ID (e.g., "button")')),
+        }),
+        description: describeShow,
+        handler: async (input): Promise<DocsShowOutput> => ({
+          id: input.id,
+          entry: await docsAccess.resolve(input.id),
+        }),
+        format: ({ id, entry }, ctx) => {
+          if (!entry) {
+            return formatEntryNotFound(id, ctx);
           }
-          return formatDocsManifest(adaptCoreDoc(doc));
-        }
-
-        if (!classification.componentIds.includes(input.id)) {
-          return formatEntryNotFound(input.id, ctx);
-        }
-
-        const attached = classification.attachedDocsByComponent.get(input.id) ?? [];
-        let docs: Record<string, MdxPayload['docs'][string]> | undefined;
-        if (attached.length > 0 && mdxPayload?.docs) {
-          docs = {};
-          for (const docsId of attached) {
-            const doc = mdxPayload.docs[docsId];
-            if (doc) {
-              docs[docsId] = doc;
-            }
-          }
-        }
-
-        return formatComponentManifest(
-          adaptCoreComponent({
-            ...docgenPayload,
-            id: input.id,
-            name: docgenPayload?.name ?? input.id,
-            ...(storyDocsPayload?.stories ? { stories: storyDocsPayload.stories } : {}),
-            ...(storyDocsPayload?.import ? { import: storyDocsPayload.import } : {}),
-            ...(docs ? { docs } : {}),
-          })
-        );
+          return entry.kind === 'doc'
+            ? formatDocsManifest(entry.doc)
+            : formatComponentManifest(entry.component);
+        },
       },
-    },
-    showStory: {
-      schema: v.object({
-        componentId: v.pipe(v.string(), v.description('Component id.')),
-        storyName: v.pipe(v.string(), v.description('Story display name (not story id).')),
-      }),
-      description: 'Returns documentation for one story of a component.',
-      handler: async (input, ctx) => {
-        const storyDocs = ctx.getService<StoryDocsService>('core/story-docs', { internal: true });
-        const docgen = ctx.getService<DocgenService>('core/docgen', { internal: true });
-        const [storyDocsPayload, docgenPayload] = await Promise.all([
-          storyDocs.queries.storyDocs.loaded({ id: input.componentId }),
-          docgen.queries.docgen.loaded({ id: input.componentId }),
-        ]);
-
-        if (ctx.format === 'json') {
-          if (!storyDocsPayload && !docgenPayload) {
-            return mapDocsShowStory({
-              componentId: input.componentId,
-              storyName: input.storyName,
-              show: { kind: 'not-found', id: input.componentId },
-            });
+      showStory: {
+        schema: v.object({
+          componentId: v.pipe(v.string(), v.description('Component id.')),
+          storyName: v.pipe(v.string(), v.description('Story display name (not story id).')),
+        }),
+        description: 'Returns documentation for one story of a component.',
+        handler: async (input): Promise<DocsShowStoryOutput> => ({
+          componentId: input.componentId,
+          storyName: input.storyName,
+          entry: await docsAccess.resolve(input.componentId),
+        }),
+        format: ({ componentId, storyName, entry }, ctx) => {
+          if (!entry || entry.kind !== 'component') {
+            return ctx.consumer === 'mcp'
+              ? `Component not found: "${componentId}". Use the ${getRef(ctx)('docs.list')} tool to see available components.`
+              : `Component not found: "${componentId}".`;
           }
 
-          const stories = storyDocsPayload?.stories
-            ? mapStoryDocsEntries(storyDocsPayload.stories)
-            : [];
+          const story = entry.component.stories?.find((candidate) => candidate.name === storyName);
+          if (!story) {
+            const availableStories = entry.component.stories?.map((s) => s.name).join(', ');
+            return `Story "${storyName}" not found for component "${componentId}". Available stories: ${availableStories || 'none'}`;
+          }
 
-          const importStatement = resolveImportStatement(storyDocsPayload, docgenPayload);
-
-          return mapDocsShowStory({
-            componentId: input.componentId,
-            storyName: input.storyName,
-            show: {
-              kind: 'component',
-              id: input.componentId,
-              name: docgenPayload?.name ?? storyDocsPayload?.name ?? input.componentId,
-              ...(importStatement !== undefined ? { import: importStatement } : {}),
-              stories,
-            },
-          });
-        }
-
-        // Mirrors `@storybook/mcp`'s `get-documentation-for-story`, including its miss messages.
-        if (!storyDocsPayload && !docgenPayload) {
-          return ctx.consumer === 'mcp'
-            ? `Component not found: "${input.componentId}". Use the list-all-documentation tool to see available components.`
-            : `Component not found: "${input.componentId}".`;
-        }
-
-        const component = adaptCoreComponent({
-          ...docgenPayload,
-          id: input.componentId,
-          name: docgenPayload?.name ?? input.componentId,
-          ...(storyDocsPayload?.stories ? { stories: storyDocsPayload.stories } : {}),
-          ...(storyDocsPayload?.import ? { import: storyDocsPayload.import } : {}),
-        });
-
-        const story = component.stories?.find((entry) => entry.name === input.storyName);
-        if (!story) {
-          const availableStories = component.stories?.map((entry) => entry.name).join(', ');
-          return `Story "${input.storyName}" not found for component "${input.componentId}". Available stories: ${availableStories || 'none'}`;
-        }
-
-        return formatStoryDocumentation(component, input.storyName);
+          return formatStoryDocumentation(entry.component, storyName);
+        },
       },
     },
-  },
-});
+  });
+}
 
-export type DocsToolset = typeof docsToolset;
+export type DocsToolset = ReturnType<typeof createDocsToolset>;
