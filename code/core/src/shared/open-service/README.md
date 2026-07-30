@@ -105,8 +105,8 @@ and synchronization; **toolsets** are the public agent surface for CLI and MCP a
 
 - `description` — `string`, or a function of `ctx` when the prose differs per consumer
 - `schema` — the input schema
-- `outputSchema` — optional; published as the MCP `outputSchema` and the shape `structuredContent`
-  is narrowed to
+- `outputSchema` — optional; published as the MCP `outputSchema`, and `structuredContent` is
+  narrowed to it. A handler may return more than this declares, so `format` has what it needs
 - `handler(input, ctx)` — produces the data, and owns side effects and telemetry
 - `format(data, ctx)` — renders that data as text, returning `string | string[]`
 
