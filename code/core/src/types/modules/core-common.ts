@@ -445,7 +445,6 @@ export interface ComponentsManifest {
   v: number;
   components: Record<string, ComponentManifest>;
   meta?: {
-    /** Renderer-supplied engine id, shown as a label by the components HTML debugger. */
     docgen:
       | 'react-docgen'
       | 'react-docgen-typescript'
