@@ -12,6 +12,7 @@ import { getRef } from '../../toolset-names.ts';
 import type { StatusesByStoryIdAndTypeId } from '../../../status-store/index.ts';
 import { getChangedStories } from './changed.ts';
 import { DEFAULT_MAX_DISTANCE, findStoriesByComponent } from './find-by-component.ts';
+import type { ModuleGraphStatus } from './resolve-component-stories.ts';
 import { formatChangedStories, formatFindByComponent, formatPreviewStories } from './format.ts';
 import { previewStories } from './preview-stories.ts';
 import { storyInputArraySchema, storyInputSchema } from './story-input.ts';
@@ -296,7 +297,20 @@ Defaults to ${DEFAULT_MAX_DISTANCE}; raise it to widen recall, lower it to tight
             componentPaths: input.componentPaths,
             maxDistance,
             index: await storyIndex.getIndex(),
-            moduleGraph,
+            // The service handle carries commands and a looser status payload than the lookup
+            // needs; this narrows it to the two queries the reverse-index walk actually calls.
+            moduleGraph: {
+              queries: {
+                status: {
+                  loaded: () =>
+                    moduleGraph.queries.status.loaded(undefined) as Promise<ModuleGraphStatus>,
+                },
+                storiesForFiles: {
+                  loaded: (files: { files: string[] }) =>
+                    moduleGraph.queries.storiesForFiles.loaded(files),
+                },
+              },
+            },
           });
 
           if (!lookup.available) {

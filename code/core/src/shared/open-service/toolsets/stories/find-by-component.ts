@@ -1,12 +1,10 @@
 import type { StoryIndex } from 'storybook/internal/types';
 
-import type { ModuleGraphService } from '../../services/module-graph/definition.ts';
 import type { FindByComponentOutput } from './definition.ts';
 import {
   resolveComponentStories,
   type ComponentStoryDepth,
   type ModuleGraphAccess,
-  type ModuleGraphStatus,
 } from './resolve-component-stories.ts';
 
 /** Default import-graph distance ceiling. */
@@ -22,7 +20,7 @@ export type FindStoriesByComponentParams = {
   /** Maximum import-graph distance to include. Defaults to {@link DEFAULT_MAX_DISTANCE}. */
   maxDistance?: number;
   index: StoryIndex;
-  moduleGraph: ModuleGraphService | undefined;
+  moduleGraph: ModuleGraphAccess | undefined;
 };
 
 /**
@@ -74,24 +72,9 @@ export async function findStoriesByComponent({
   index,
   moduleGraph,
 }: FindStoriesByComponentParams): Promise<FindStoriesByComponentResult> {
-  // Adapt the service handle to the resolver's structural slice; the wrapper also pins the
-  // zero-input call shape for the status query.
-  const access: ModuleGraphAccess | undefined = moduleGraph && {
-    queries: {
-      // The status query's wire schema types `error` loosely; the state's ErrorLike shape is what
-      // actually arrives, which is what the resolver needs for its failure message.
-      status: {
-        loaded: () => moduleGraph.queries.status.loaded(undefined) as Promise<ModuleGraphStatus>,
-      },
-      storiesForFiles: {
-        loaded: (input: { files: string[] }) => moduleGraph.queries.storiesForFiles.loaded(input),
-      },
-    },
-  };
-
   const lookup = await resolveComponentStories(
     { componentPaths },
-    { getStoryIndex: async () => index, moduleGraph: access }
+    { getStoryIndex: async () => index, moduleGraph }
   );
 
   if (!lookup.available) {

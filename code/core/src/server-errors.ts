@@ -396,6 +396,23 @@ export class OpenServiceModuleGraphUnavailableError extends StorybookError {
   }
 }
 
+/**
+ * A toolset method returned data its own published `outputSchema` rejects.
+ *
+ * Always a bug in the method: the schema is the contract adapters publish to their clients, so the
+ * mismatch is raised instead of quietly shipping unvalidated data.
+ */
+export class OpenServiceToolsetOutputMismatchError extends StorybookError {
+  constructor(public data: { issues: readonly unknown[] }) {
+    super({
+      name: 'OpenServiceToolsetOutputMismatchError',
+      category: Category.CORE_COMMON,
+      code: 26,
+      message: `Toolset output did not match its published output schema: ${JSON.stringify(data.issues)}`,
+    });
+  }
+}
+
 export class WebpackMissingStatsError extends StorybookError {
   constructor() {
     super({
