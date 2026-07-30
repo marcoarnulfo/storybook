@@ -23,9 +23,11 @@ export type ModuleGraphStoryHit = {
  */
 export type ModuleGraphAccess = {
   queries: {
-    status: { loaded: (input: undefined) => Promise<ModuleGraphStatus> };
+    status: { loaded: (input?: undefined) => Promise<ModuleGraphStatus> };
     /** Positional: result `i` corresponds to input `files[i]`. */
-    storiesForFiles: { loaded: (input: { files: string[] }) => Promise<ModuleGraphStoryHit[][]> };
+    storiesForFiles: {
+      loaded: (input: { files: string[] }) => Promise<Array<ModuleGraphStoryHit[] | undefined>>;
+    };
   };
 };
 

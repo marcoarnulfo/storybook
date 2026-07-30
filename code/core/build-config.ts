@@ -202,6 +202,12 @@ const config: BuildEntries = {
         exportEntries: ['./open-service'],
         entryPoint: './src/shared/open-service/index.ts',
       },
+      {
+        // Dependency-light docs toolset surface bundled into `@storybook/mcp`'s dist (core is a
+        // dev dependency there), replacing that package's own manifest-formatter copies.
+        exportEntries: ['./internal/toolsets-docs'],
+        entryPoint: './src/shared/open-service/toolsets/docs/public.ts',
+      },
     ],
     runtime: [
       {

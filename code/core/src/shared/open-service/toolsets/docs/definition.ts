@@ -80,7 +80,7 @@ export function createDocsToolset({ docsAccess }: CreateDocsToolsetOptions) {
           manifests: await docsAccess.list({ withStoryIds: input.withStoryIds }),
           withStoryIds: input.withStoryIds,
         }),
-        format: ({ manifests, withStoryIds }) =>
+        format: ({ manifests, withStoryIds }: DocsListOutput) =>
           formatManifestsToLists(manifests, { withStoryIds }),
       },
       show: {
@@ -92,7 +92,7 @@ export function createDocsToolset({ docsAccess }: CreateDocsToolsetOptions) {
           id: input.id,
           entry: await docsAccess.resolve(input.id),
         }),
-        format: ({ id, entry }, ctx) => {
+        format: ({ id, entry }: DocsShowOutput, ctx) => {
           if (!entry) {
             return formatEntryNotFound(id, ctx);
           }
@@ -112,7 +112,7 @@ export function createDocsToolset({ docsAccess }: CreateDocsToolsetOptions) {
           storyName: input.storyName,
           entry: await docsAccess.resolve(input.componentId),
         }),
-        format: ({ componentId, storyName, entry }, ctx) => {
+        format: ({ componentId, storyName, entry }: DocsShowStoryOutput, ctx) => {
           if (!entry || entry.kind !== 'component') {
             return ctx.consumer === 'mcp'
               ? `Component not found: "${componentId}". Use the ${getRef(ctx)('docs.list')} tool to see available components.`

@@ -1,3 +1,9 @@
+import {
+  adaptCoreComponent as sharedAdaptCoreComponent,
+  adaptCoreDoc as sharedAdaptCoreDoc,
+  adaptCoreStories as sharedAdaptCoreStories,
+  type CoreDocgenComponent as SharedCoreDocgenComponent,
+} from 'storybook/internal/toolsets-docs';
 import type { ComponentManifest, CoreDocgenComponent, CoreMdxDoc, Doc, Story } from '../types.ts';
 
 /**
@@ -7,43 +13,24 @@ import type { ComponentManifest, CoreDocgenComponent, CoreMdxDoc, Doc, Story } f
  * ref-resolution path (built/static/remote manifests) and the addon's in-process
  * `resolveEntry` hook (dev).
  *
- * Only `argTypes` is dropped: prop types still come from `reactComponentMeta` and
- * the `react*` docgen-engine fields, which are passed through unchanged.
+ * The implementation lives in Storybook core (`storybook/internal/toolsets-docs`,
+ * bundled into this package's dist). These delegates keep this package's structural
+ * `Core*` parameter types — the wire contract also exported from `./types.ts` — because
+ * core types its equivalent directly against the service payload types, which are
+ * narrower (e.g. `subcomponents`) than the structural declarations here.
  */
-
-const ARG_TYPES_KEY = 'argTypes';
 
 /** Converts the story-docs `stories` record (or an already-resolved array) into `Story[]`. */
 export function adaptCoreStories(stories: CoreDocgenComponent['stories']): Story[] | undefined {
-  if (!stories) {
-    return undefined;
-  }
-  if (Array.isArray(stories)) {
-    return stories;
-  }
-  return Object.values(stories);
+  return sharedAdaptCoreStories(stories);
 }
 
 /** Adapts one MDX service payload into a {@link Doc}. */
 export function adaptCoreDoc(doc: CoreMdxDoc): Doc {
-  return { ...doc };
+  return sharedAdaptCoreDoc(doc);
 }
 
 /** Adapts a core-format component (docgen + story-docs + attached MDX) into a {@link ComponentManifest}. */
 export function adaptCoreComponent(core: CoreDocgenComponent): ComponentManifest {
-  const { stories, docs, [ARG_TYPES_KEY]: _argTypes, ...rest } = core;
-  const component = { ...rest } as ComponentManifest;
-
-  const adaptedStories = adaptCoreStories(stories);
-  if (adaptedStories) {
-    component.stories = adaptedStories;
-  }
-
-  if (docs) {
-    component.docs = Object.fromEntries(
-      Object.entries(docs).map(([id, doc]) => [id, adaptCoreDoc(doc)])
-    );
-  }
-
-  return component;
+  return sharedAdaptCoreComponent(core as SharedCoreDocgenComponent);
 }

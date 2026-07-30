@@ -52,10 +52,7 @@ export type ToolsetMethod<TSchema extends AnySchema = AnySchema, TOutput = unkno
   schema: TSchema;
   /** Published as the MCP tool's `outputSchema`. Declare it only where the JSON is contractual. */
   outputSchema?: AnySchema;
-  handler: (
-    input: StandardSchemaV1.InferOutput<TSchema>,
-    context: ToolsetCtx
-  ) => TOutput | Promise<TOutput>;
+  handler: (input: StandardSchemaV1.InferOutput<TSchema>, context: ToolsetCtx) => TOutput;
   format: (data: Awaited<TOutput>, context: ToolsetCtx) => string;
 };
 
@@ -74,22 +71,29 @@ export type ToolsetDefinition<
 
 export type AnyToolsetDefinition = ToolsetDefinition;
 
-type DefinedToolsetMethods<
-  TSchemas extends Record<string, AnySchema>,
-  TOutputs extends Record<keyof TSchemas, unknown>,
-> = {
-  [TKey in keyof TSchemas]: ToolsetMethod<TSchemas[TKey], TOutputs[TKey]>;
+/**
+ * Second contextual-typing pass for the methods literal: `handler` input comes from that method's
+ * own `schema`, and `format` data from that method's own `handler` return. Intersecting this with
+ * the inferred map is what makes the flow work on both the stable and the native TypeScript
+ * compiler — inferring a separate outputs record does not.
+ */
+type MethodContracts<TMethods extends ToolsetMethods> = {
+  [TKey in keyof TMethods]: {
+    handler: (
+      input: StandardSchemaV1.InferOutput<TMethods[TKey]['schema']>,
+      context: ToolsetCtx
+    ) => unknown;
+    format: (data: Awaited<ReturnType<TMethods[TKey]['handler']>>, context: ToolsetCtx) => string;
+  };
 };
 
-export function defineToolset<
-  const TId extends string,
-  const TSchemas extends Record<string, AnySchema>,
-  const TOutputs extends Record<keyof TSchemas, unknown>,
->(definition: {
-  id: TId;
-  description: string;
-  methods: DefinedToolsetMethods<TSchemas, TOutputs>;
-}): ToolsetDefinition<TId, DefinedToolsetMethods<TSchemas, TOutputs>> {
+export function defineToolset<const TId extends string, const TMethods extends ToolsetMethods>(
+  definition: {
+    id: TId;
+    description: string;
+    methods: TMethods & MethodContracts<TMethods>;
+  }
+): ToolsetDefinition<TId, TMethods> {
   return definition;
 }
 

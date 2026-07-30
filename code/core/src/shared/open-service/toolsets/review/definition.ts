@@ -59,6 +59,8 @@ const reviewCreateInputSchema = v.object({
   ),
 });
 
+type ReviewCreateInput = v.InferOutput<typeof reviewCreateInputSchema>;
+
 const reviewCreateOutputSchema = v.object({
   reviewUrl: v.pipe(
     v.string(),
@@ -119,7 +121,7 @@ export const reviewToolset = defineToolset({
       schema: reviewCreateInputSchema,
       outputSchema: reviewCreateOutputSchema,
       description: describeCreate,
-      handler: async (review, ctx): Promise<ReviewCreateOutput> => {
+      handler: async (review: ReviewCreateInput, ctx): Promise<ReviewCreateOutput> => {
         if (!ctx.origin) {
           throw new OpenServiceMissingOriginError({
             toolsetId: 'review',
@@ -147,7 +149,7 @@ export const reviewToolset = defineToolset({
           ),
         };
       },
-      format: ({ reviewUrl, collectionCount, storyCount }, ctx) => {
+      format: ({ reviewUrl, collectionCount, storyCount }: ReviewCreateOutput, ctx) => {
         const storyNoun = storyCount === 1 ? 'y' : 'ies';
         const summary = `Review applied: ${collectionCount} collection${collectionCount === 1 ? '' : 's'}, ${storyCount} stor${storyNoun}.`;
 

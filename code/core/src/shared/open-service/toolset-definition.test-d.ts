@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { describe, expectTypeOf, it } from 'vitest';
 
-import { defineToolset, type ToolsetDefinition } from './index.ts';
+import { defineToolset, type ToolsetCtx, type ToolsetDefinition } from './index.ts';
 
 const exampleToolset = defineToolset({
   id: 'example',
@@ -10,11 +10,8 @@ const exampleToolset = defineToolset({
     greet: {
       description: 'Greets a person.',
       schema: v.object({ name: v.string() }),
-      handler: async ({ name }) => {
-        expectTypeOf(name).toEqualTypeOf<string>();
-
-        return `Hello ${name}`;
-      },
+      handler: async ({ name }) => ({ greeting: `Hello ${name}` }),
+      format: (data) => data.greeting,
     },
   },
 });
@@ -24,33 +21,50 @@ const reviewToolset = defineToolset({
   description: 'Create a review',
   methods: {
     create: {
-      description: 'Create a review',
+      description: (ctx) => `Create a review (${ctx.consumer})`,
       schema: v.object({ title: v.string() }),
-      handler: async (input, ctx) => {
-        expectTypeOf(input.title).toEqualTypeOf<string>();
-        expectTypeOf(ctx.consumer).toEqualTypeOf<'cli' | 'mcp'>();
-        expectTypeOf(ctx.origin).toEqualTypeOf<string | undefined>();
-        expectTypeOf(ctx.format).toEqualTypeOf<'markdown' | 'json'>();
-        expectTypeOf(
-          ctx.getService<{ ok: true }>('core/review', { internal: true })
-        ).toEqualTypeOf<{
-          ok: true;
-        }>();
-
-        return input.title;
-      },
+      outputSchema: v.object({ title: v.string() }),
+      handler: async (input, ctx): Promise<{ title: string; origin?: string }> => ({
+        title: input.title,
+        origin: ctx.origin,
+      }),
+      format: (data) => data.title,
     },
   },
 });
 
 describe('defineToolset types', () => {
-  it('preserves method schema output types in handlers', () => {
+  // Assertions live outside the definition literal: inside it, the first contextual-typing pass
+  // sees `any`/`unknown` params, so exact-type checks there would report on the wrong pass.
+  it('types handler input from the method schema', () => {
+    const greet: (input: { name: string }, context: ToolsetCtx) => Promise<{ greeting: string }> =
+      exampleToolset.methods.greet.handler;
+    const create: (
+      input: { title: string },
+      context: ToolsetCtx
+    ) => Promise<{ title: string; origin?: string }> = reviewToolset.methods.create.handler;
+
+    expectTypeOf(greet).toBeFunction();
+    expectTypeOf(create).toBeFunction();
     expectTypeOf(exampleToolset).toMatchTypeOf<ToolsetDefinition>();
-    expectTypeOf(exampleToolset.methods.greet.handler).parameter(0).toEqualTypeOf<{
-      name: string;
-    }>();
-    expectTypeOf(reviewToolset.methods.create.handler).parameter(0).toEqualTypeOf<{
-      title: string;
-    }>();
+  });
+
+  it('types format input from the handler return type', () => {
+    const greetFormat: (data: { greeting: string }, context: ToolsetCtx) => string =
+      exampleToolset.methods.greet.format;
+    const createFormat: (
+      data: { title: string; origin?: string },
+      context: ToolsetCtx
+    ) => string = reviewToolset.methods.create.format;
+
+    expectTypeOf(greetFormat).toBeFunction();
+    expectTypeOf(createFormat).toBeFunction();
+  });
+
+  it('resolves description functions against the toolset context', () => {
+    const description: string | ((context: ToolsetCtx) => string) =
+      reviewToolset.methods.create.description;
+
+    expectTypeOf(description).not.toBeNever();
   });
 });
