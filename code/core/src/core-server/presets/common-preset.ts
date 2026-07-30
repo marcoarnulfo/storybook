@@ -58,7 +58,7 @@ import { initCreateNewStoryChannel } from '../server-channel/create-new-story-ch
 import { initFileSearchChannel } from '../server-channel/file-search-channel.ts';
 import { initGhostStoriesChannel } from '../server-channel/ghost-stories-channel.ts';
 import { initOpenInEditorChannel } from '../server-channel/open-in-editor-channel.ts';
-import { isReviewFeatureEnabled } from '../../shared/review/features.ts';
+import { isReviewExplicitlyEnabled, isReviewFeatureEnabled } from '../../shared/review/features.ts';
 import { initTelemetryChannel } from '../server-channel/telemetry-channel.ts';
 import { initializeChecklist } from '../utils/checklist.ts';
 import { defaultFavicon, defaultStaticDirs } from '../utils/constants.ts';
@@ -374,7 +374,6 @@ export const services = async (_value: void, options: Options): Promise<void> =>
   });
 
   const features = await options.presets.apply('features');
-  const reviewEnabled = isReviewFeatureEnabled(features);
 
   // Toolsets register imperatively alongside their services: addons contribute both from their own
   // `services` hook. The test toolset registers from addon-vitest, which owns the channel it needs.
@@ -391,7 +390,11 @@ export const services = async (_value: void, options: Options): Promise<void> =>
       changeStatuses: {
         getAll: () => getStatusStoreByTypeId(CHANGE_DETECTION_STATUS_TYPE_ID).getAll(),
       },
-      reviewEnabled,
+      // The explicit opt-in gate, not `isReviewFeatureEnabled`: with the flag unset the review
+      // infrastructure below still registers (the `storybook ai` CLI channel enables the tool per
+      // request), but direct MCP clients never see `display-review`, so the stories prose must
+      // not point at it.
+      reviewEnabled: isReviewExplicitlyEnabled(features),
     })
   );
 
@@ -405,7 +408,7 @@ export const services = async (_value: void, options: Options): Promise<void> =>
     })
   );
 
-  if (reviewEnabled) {
+  if (isReviewFeatureEnabled(features)) {
     registerReviewService({
       getIndex: () => storyIndexGenerator.getIndex(),
     });
