@@ -79,6 +79,13 @@ export type AddonContext = StorybookContext & {
    * Gates the `display-review` tool and the instruction variant.
    */
   reviewEnabled?: boolean;
+
+  /**
+   * Whether this request came through the `storybook ai` CLI channel (marked by
+   * {@link STORYBOOK_MCP_PROXY_HEADER}) rather than from a direct MCP client. Telemetry reports it
+   * as the `consumer` field.
+   */
+  cliClient?: boolean;
 };
 
 const StoryInputProps = {
