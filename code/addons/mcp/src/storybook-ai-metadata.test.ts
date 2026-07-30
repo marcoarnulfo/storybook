@@ -41,10 +41,7 @@ vi.mock('./utils/is-addon-a11y-enabled.ts', () => ({
   isAddonA11yEnabled: vi.fn(),
 }));
 
-vi.mock('./utils/addon-vitest.ts', async (importActual) => ({
-  ...(await importActual<typeof import('./utils/addon-vitest.ts')>()),
-  getAddonVitestConstants: vi.fn(),
-}));
+vi.mock('./utils/addon-vitest.ts', { spy: true });
 
 describe('buildStorybookAiMetadata', () => {
   beforeEach(() => {
