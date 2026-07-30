@@ -1,5 +1,19 @@
 import { describe, expect, test } from 'vitest';
-import { parseReactDocgen, parseReactDocgenTypescript } from './parse-react-docgen.ts';
+import {
+  parseReactDocgen as parseDocgen,
+  parseReactDocgenTypescript as parseDocgenTypescript,
+} from './parse-react-docgen.ts';
+
+/**
+ * The fixtures below are real `react-docgen` / `react-docgen-typescript` payloads, while the
+ * parsers are typed against the structural subset they actually read — so the literals carry
+ * fields (`computed`, `name`, nullable defaults) the parameter types don't declare. Widening here
+ * keeps the fixtures faithful to what the parsers receive in production.
+ */
+const parseReactDocgen = (input: unknown) =>
+  parseDocgen(input as Parameters<typeof parseDocgen>[0]);
+const parseReactDocgenTypescript = (input: unknown) =>
+  parseDocgenTypescript(input as Parameters<typeof parseDocgenTypescript>[0]);
 
 describe('parseReactDocgen', () => {
   test('prefers raw over computed for unions (and copies default/required)', () => {

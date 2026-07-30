@@ -317,12 +317,6 @@ export const experimental_serverChannel = async (
   initCreateNewStoryChannel(channel, options);
   initGhostStoriesChannel(channel, options);
   initOpenInEditorChannel(channel);
-  if (isReviewFeatureEnabled(await options.presets.apply('features'))) {
-    // The returned teardown is intentionally unused: the server channel lives for the whole
-    // dev-server process and `experimental_serverChannel` has no teardown phase to call it from, so
-    // this listener is process-lifetime by design. Wiring cleanup here would add lifecycle
-    // infrastructure with nothing to invoke it, matching the other `init*Channel` calls above.
-  }
   initTelemetryChannel(channel);
 
   return channel;
@@ -398,22 +392,17 @@ export const services = async (_value: void, options: Options): Promise<void> =>
     })
   );
 
-  registerToolset(
-    createDocsToolset({
-      // Docgen-server mode moves docs data out of the served manifests and into the open services,
-      // so the toolset reads whichever one this Storybook actually populates.
-      docsAccess: features?.experimentalDocgenServer
-        ? createServiceDocsAccess({ storyIndex, getService })
-        : createManifestDocsAccess({ getManifests: () => loadManifests(options.presets) }),
-    })
-  );
-
   if (isReviewFeatureEnabled(features)) {
     registerReviewService({
       getIndex: () => storyIndexGenerator.getIndex(),
     });
     registerToolset(reviewToolset);
   }
+
+  // Tracks whether the docs services below actually came up, so the docs toolset can pick an
+  // access it can serve from. The flag alone is not enough: the registrations are skipped for
+  // manager-only builds and when no docgen worker is available.
+  let docgenServicesRegistered = false;
 
   // Skip when previewing is off — the docgen service's staticInputs depends on the story index,
   // so registering it would force full story-index generation during manager-only builds (and
@@ -442,6 +431,7 @@ export const services = async (_value: void, options: Options): Promise<void> =>
         docgenProvider: (input) => docgenWorker.extract(input.entry),
         workingDir: process.cwd(),
       });
+      docgenServicesRegistered = true;
     }
 
     registerStoryDocsService({
@@ -450,6 +440,17 @@ export const services = async (_value: void, options: Options): Promise<void> =>
       workingDir: process.cwd(),
     });
   }
+
+  registerToolset(
+    createDocsToolset({
+      // Docgen-server mode moves docs data out of the served manifests and into the open services,
+      // so the toolset reads whichever one this Storybook actually populates — the services when
+      // they came up, and otherwise the manifests, which every mode still writes.
+      docsAccess: docgenServicesRegistered
+        ? createServiceDocsAccess({ storyIndex, getService })
+        : createManifestDocsAccess({ getManifests: () => loadManifests(options.presets) }),
+    })
+  );
 };
 
 // Store the promise (not the result) to prevent race conditions.

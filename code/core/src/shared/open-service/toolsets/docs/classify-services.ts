@@ -1,7 +1,4 @@
-import type { DocgenPayload } from '../../services/docgen/types.ts';
-import type { StoryDocsPayload } from '../../services/story-docs/types.ts';
-import type { MdxPayload } from './map.ts';
-
+/** What the docs services expose about a project, as `createServiceDocsAccess` reads it. */
 export type DocsClassification = {
   /** Component ids present in docgen and/or story-docs aggregates. */
   componentIds: string[];
@@ -12,8 +9,3 @@ export type DocsClassification = {
   /** Attached MDX docs ids grouped by owning component id. */
   attachedDocsByComponent: Map<string, string[]>;
 };
-
-/**
- * Visibility intentionally follows composed service payloads because this API has no story-index
- * dependency with which to reapply manifest filtering.
- */

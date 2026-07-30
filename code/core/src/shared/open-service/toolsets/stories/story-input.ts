@@ -5,8 +5,11 @@ import { MCP_TOOL_NAMES } from '../../toolset-names.ts';
 /**
  * Per-shape props/globals selectors, shared by both story selector variants.
  *
- * The prose predates the toolsets and is eval-tuned; it names sibling capabilities by their frozen
- * MCP tool names because valibot descriptions are static strings, with no per-consumer rendering.
+ * The prose predates the toolsets and is eval-tuned, so it is kept verbatim. It names sibling
+ * capabilities by their MCP tool names rather than through `getRef`, because valibot descriptions
+ * are static strings with no per-consumer rendering. One of them, `get-storybook-story-instructions`,
+ * is an `@storybook/addon-mcp` tool with no toolset method and so no entry in {@link MCP_TOOL_NAMES};
+ * a CLI consumer would need this sentence rewritten rather than re-rendered.
  */
 const storyInputProps = {
   props: v.pipe(

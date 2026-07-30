@@ -60,6 +60,31 @@ type Event =
       payload: StoreState['currentRun'];
     };
 
+/**
+ * Registers the public `test` toolset.
+ *
+ * This addon owns the toolset because running stories needs its channel protocol, but it must
+ * register from the `services` hook rather than `experimental_serverChannel`: consumers resolve
+ * the toolset for its descriptions and schemas alone, and the two places that do so — `storybook
+ * ai` metadata generation (which never starts a dev server) and a non-Vite dev server (where the
+ * channel hook returns early) — would otherwise ask for a toolset that was never registered and
+ * fail hard. Registering here matches the availability gate that decides whether the tool is
+ * offered at all, which likewise only checks that this addon is installed. The channel is used
+ * only when a run is actually triggered.
+ */
+export const services = async (_value: void, options: Options): Promise<void> => {
+  const storyIndexGenerator =
+    await options.presets.apply<Promise<StoryIndexGenerator>>('storyIndexGenerator');
+
+  registerToolset(
+    createTestToolset({
+      channel: options.channel as Channel,
+      storyIndex: { getIndex: () => storyIndexGenerator.getIndex() },
+      a11yEnabled: await options.presets.apply('isAddonA11yEnabled', false),
+    })
+  );
+};
+
 export const experimental_serverChannel = async (channel: Channel, options: Options) => {
   const core = await options.presets.apply('core');
 
@@ -92,17 +117,6 @@ export const experimental_serverChannel = async (channel: Channel, options: Opti
 
   const storyIndexGenerator =
     await options.presets.apply<Promise<StoryIndexGenerator>>('storyIndexGenerator');
-
-  // The test toolset lives here rather than in core because running stories needs this addon's
-  // channel protocol: registering it from here means the public `test` surface exists exactly when
-  // tests can actually run.
-  registerToolset(
-    createTestToolset({
-      channel,
-      storyIndex: { getIndex: () => storyIndexGenerator.getIndex() },
-      a11yEnabled: await options.presets.apply('isAddonA11yEnabled', false),
-    })
-  );
 
   const fsCache = createFileSystemCache({
     basePath: resolvePathInStorybookCache(ADDON_ID.replace('/', '-')),

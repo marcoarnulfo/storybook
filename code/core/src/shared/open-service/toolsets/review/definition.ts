@@ -140,13 +140,22 @@ export const reviewToolset = defineToolset({
           throw error;
         }
 
+        const collectionCount = review.collections.length;
+        const storyCount = review.collections.reduce(
+          (total, collection) => total + collection.storyIds.length,
+          0
+        );
+
+        await ctx.telemetry?.('tool:displayReview', {
+          collectionCount,
+          storyCount,
+          changedFileCount: review.changedFiles.length,
+        });
+
         return {
           reviewUrl: `${ctx.origin.replace(/\/$/, '')}/?path=${REVIEW_PAGE_PATH}`,
-          collectionCount: review.collections.length,
-          storyCount: review.collections.reduce(
-            (total, collection) => total + collection.storyIds.length,
-            0
-          ),
+          collectionCount,
+          storyCount,
         };
       },
       format: ({ reviewUrl, collectionCount, storyCount }: ReviewCreateOutput, ctx) => {

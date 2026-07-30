@@ -1,9 +1,6 @@
 export const MCP_APP_PARAM = 'mcp-app';
 export const MCP_APP_SIZE_CHANGED_EVENT = 'storybook-mcp:size-changed';
 
-/** Storybook manager route the review page is registered at. */
-export const REVIEW_PAGE_PATH = '/review/';
-
 /**
  * Request header the `storybook ai` CLI (and the Claude/Codex plugins built on
  * it) sends on every MCP request to mark itself as a trusted local Storybook
