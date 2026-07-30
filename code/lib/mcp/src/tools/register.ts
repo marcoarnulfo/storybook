@@ -8,6 +8,8 @@
  */
 
 import type { McpServer } from 'tmcp';
+import type { GenericSchema } from 'valibot';
+
 import {
   createDocsToolset,
   createProviderDocsAccess,
@@ -94,7 +96,23 @@ function metadataToolset(multiSource: boolean): DocsToolset {
     : createDocsToolset({ docsAccess: unavailable });
 }
 
-function toolMetadata(method: 'docs.list' | 'docs.show' | 'docs.showStory', multiSource: boolean) {
+/**
+ * What an embedder needs to register one of these tools on its own server.
+ *
+ * The type is written out rather than inferred: the schemas come from the bundled core toolset, so
+ * an inferred signature would name valibot types this package's `.d.ts` cannot reference.
+ */
+export type DocsToolMetadata = {
+  name: string;
+  title: string;
+  description: string;
+  schema: GenericSchema;
+};
+
+function toolMetadata(
+  method: 'docs.list' | 'docs.show' | 'docs.showStory',
+  multiSource: boolean
+): DocsToolMetadata {
   const [, methodName] = method.split('.') as [string, 'list' | 'show' | 'showStory'];
   const definition = metadataToolset(multiSource).methods[methodName];
 
@@ -106,15 +124,21 @@ function toolMetadata(method: 'docs.list' | 'docs.show' | 'docs.showStory', mult
   };
 }
 
-export function getListAllDocumentationToolMetadata(options?: { multiSource?: boolean }) {
+export function getListAllDocumentationToolMetadata(options?: {
+  multiSource?: boolean;
+}): DocsToolMetadata {
   return toolMetadata('docs.list', !!options?.multiSource);
 }
 
-export function getDocumentationToolMetadata(options?: { multiSource?: boolean }) {
+export function getDocumentationToolMetadata(options?: {
+  multiSource?: boolean;
+}): DocsToolMetadata {
   return toolMetadata('docs.show', !!options?.multiSource);
 }
 
-export function getStoryDocumentationToolMetadata(options?: { multiSource?: boolean }) {
+export function getStoryDocumentationToolMetadata(options?: {
+  multiSource?: boolean;
+}): DocsToolMetadata {
   return toolMetadata('docs.showStory', !!options?.multiSource);
 }
 
