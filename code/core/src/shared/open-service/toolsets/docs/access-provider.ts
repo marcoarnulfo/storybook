@@ -221,7 +221,9 @@ async function fetchRefValue<T>(
   }
 
   for (const key of pointer) {
-    if (target && typeof target === 'object' && key in (target as Record<string, unknown>)) {
+    // Own properties only: the pointer comes from a fetched manifest, so `constructor` or
+    // `__proto__` would otherwise walk into the prototype instead of failing as unresolvable.
+    if (target && typeof target === 'object' && Object.hasOwn(target, key)) {
       target = (target as Record<string, unknown>)[key];
     } else {
       throw new ManifestGetError(
