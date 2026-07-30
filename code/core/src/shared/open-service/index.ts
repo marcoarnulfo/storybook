@@ -22,6 +22,7 @@ export type {
 export { getRef, MCP_TOOL_NAMES, MCP_TOOL_TITLES } from './toolset-names.ts';
 export type { ToolsetMethodRef } from './toolset-names.ts';
 export {
+  clearToolsetRegistry,
   getRegisteredToolsets,
   getToolset,
   hasToolset,
@@ -29,9 +30,7 @@ export {
 } from './toolset-registry.ts';
 export type { KnownToolsets } from './toolset-types.ts';
 
-/** Exposed for addon-vitest, which owns the channel the test toolset runs on. */
-export { createTestToolset } from './toolsets/test/definition.ts';
-export type { CreateTestToolsetOptions, TestToolset } from './toolsets/test/definition.ts';
+
 
 export type { DocgenService } from './services/docgen/definition.ts';
 export type { DocgenPayload } from './services/docgen/types.ts';

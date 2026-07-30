@@ -257,8 +257,9 @@ ${data.notFoundMessages.join('\n')}`;
     case 'cancelled':
       return 'Error: Test run was cancelled';
     default: {
-      const exhaustive: never = data;
-      return exhaustive;
+      // Type-only: a new outcome must get its own agent-facing text rather than falling through.
+      const _exhaustive: never = data;
+      return _exhaustive;
     }
   }
 }

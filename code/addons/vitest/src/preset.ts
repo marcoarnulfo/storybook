@@ -9,11 +9,12 @@ import {
 } from 'storybook/internal/common';
 import {
   type StoryIndexGenerator,
+  createTestToolset,
   experimental_UniversalStore,
   experimental_getTestProviderStore,
+  registerToolset,
 } from 'storybook/internal/core-server';
 import { logger } from 'storybook/internal/node-logger';
-import { createTestToolset, registerToolset } from 'storybook/open-service';
 import { cleanPaths, oneWayHash, sanitizeError, telemetry } from 'storybook/internal/telemetry';
 import type {
   Options,
