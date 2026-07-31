@@ -287,10 +287,12 @@ const addonToolDefinitions: AddonToolDefinition[] = [
  */
 // The name check backs up `instanceof`: the error can be constructed by a different copy of the
 // class when the registry and this adapter resolve through different core entries (or src vs
-// dist in tests), and `StorybookError` embeds the stable error name in `Error#name`.
+// dist in tests). The expected identity — `StorybookError`'s stable code + name — is computed
+// from the imported class, and matched exactly so a near-miss still fails fast.
+const MISSING_TOOLSET_ERROR_NAME = new OpenServiceMissingToolsetError({ toolsetId: '' }).name;
 const isMissingToolsetError = (error: unknown): boolean =>
   error instanceof OpenServiceMissingToolsetError ||
-  (error instanceof Error && error.name.includes('OpenServiceMissingToolsetError'));
+  (error instanceof Error && error.name === MISSING_TOOLSET_ERROR_NAME);
 
 function dropRowIfToolsetMissing(name: string, error: unknown): undefined {
   if (!isMissingToolsetError(error)) {

@@ -4,6 +4,7 @@
  * see, so they are pinned here at the adapter seam.
  */
 
+import { OpenServiceMissingToolsetError } from 'storybook/internal/server-errors';
 import { clearToolsetRegistry, defineToolset, registerToolset } from 'storybook/open-service';
 import * as v from 'valibot';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -63,6 +64,57 @@ describe('a broken tool row', () => {
     expect(names).not.toContain('run-story-tests');
     expect(names).toEqual(expect.arrayContaining(['preview-stories', 'list-all-documentation']));
     expect(loggerError).toHaveBeenCalledWith(expect.stringContaining('run-story-tests'));
+  });
+
+  it('drops the row for a cross-copy missing-toolset error, matched by its exact identity', () => {
+    // A different copy of the class (another core entry, or dist vs src) fails `instanceof` but
+    // carries the same StorybookError name.
+    const crossCopy = new Error('No registered toolset with id "test" exists.');
+    crossCopy.name = new OpenServiceMissingToolsetError({ toolsetId: 'test' }).name;
+    registerToolset(
+      defineToolset({
+        id: 'test',
+        description: 'stub',
+        methods: {
+          run: {
+            schema: v.object({}),
+            description: () => {
+              throw crossCopy;
+            },
+            handler: async () => ({}),
+            format: () => '',
+          },
+        },
+      }) as any
+    );
+
+    const names = getAddonToolMetadata(context).map((tool) => tool.name);
+
+    expect(names).not.toContain('run-story-tests');
+    expect(loggerError).toHaveBeenCalledWith(expect.stringContaining('run-story-tests'));
+  });
+
+  it('rethrows a near-match that merely contains the error name', () => {
+    const nearMatch = new Error('boom');
+    nearMatch.name = 'NotOpenServiceMissingToolsetError (impostor)';
+    registerToolset(
+      defineToolset({
+        id: 'test',
+        description: 'stub',
+        methods: {
+          run: {
+            schema: v.object({}),
+            description: () => {
+              throw nearMatch;
+            },
+            handler: async () => ({}),
+            format: () => '',
+          },
+        },
+      }) as any
+    );
+
+    expect(() => getAddonToolMetadata(context)).toThrow('boom');
   });
 
   it('contains only the missing-toolset case: any other adapter failure still fails fast', () => {
