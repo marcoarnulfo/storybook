@@ -17,7 +17,8 @@ export type BuildEntry = {
    * packages bundle into their own dist, where a shared chunk would drag unrelated type surfaces
    * along. `external` lists the only imports the flat file may keep — packages every consumer of
    * the entry declares itself (it only affects this d.ts pass, never the JS bundle). A producer-side
-   * test guards each portable artifact: flatness, exactly this import allowlist, and a size budget.
+   * test guards each portable artifact: flatness, the import allowlist (kept there as a deliberate
+   * second copy, so widening it is a reviewer-visible edit), and a size budget.
    */
   portable?: { external: string[] };
 };

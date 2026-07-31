@@ -168,6 +168,16 @@ This usually means the IDs were inferred from file paths or naming conventions r
       );
     });
 
+    it('tells MCP to reuse the request-derived UI root, not the bare origin', async () => {
+      // A sub-path-hosted Storybook serves its UI under the request root; "already running at"
+      // must name the address the agent can actually reach, like the review link does.
+      const outcome = await createReview({}, { ...mcpCtx, uiRoot: 'http://localhost:6006/nested' });
+
+      expect(outcome.markdown).toContain(
+        'Storybook is already running at http://localhost:6006/nested — reuse it.'
+      );
+    });
+
     it('tells MCP to open the page itself and to surface the link to the user', async () => {
       const outcome = await createReview({}, mcpCtx);
 

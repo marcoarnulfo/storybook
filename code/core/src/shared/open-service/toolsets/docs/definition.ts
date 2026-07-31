@@ -74,25 +74,63 @@ export function selectReportedManifests({
 }
 
 /**
+ * One classification of a `show` lookup, shared by the failure predicate and the renderer so the
+ * outcome tag and the rendered prose cannot disagree.
+ */
+type ShowResolution =
+  | { kind: 'source-error'; message: string }
+  | { kind: 'entry-missing' }
+  | { kind: 'found'; entry: ResolvedDocsEntry };
+
+function resolveShow({ entry, sourceError }: DocsShowOutput): ShowResolution {
+  if (sourceError !== undefined) {
+    return { kind: 'source-error', message: sourceError };
+  }
+  if (entry === undefined) {
+    return { kind: 'entry-missing' };
+  }
+  return { kind: 'found', entry };
+}
+
+type ComponentEntry = Extract<ResolvedDocsEntry, { kind: 'component' }>;
+
+/** The `showStory` counterpart of {@link ShowResolution}. */
+type ShowStoryResolution =
+  | { kind: 'source-error'; message: string }
+  | { kind: 'component-missing' }
+  | { kind: 'story-missing'; component: ComponentEntry['component'] }
+  | { kind: 'found'; component: ComponentEntry['component'] };
+
+function resolveShowStory({
+  entry,
+  storyName,
+  sourceError,
+}: DocsShowStoryOutput): ShowStoryResolution {
+  if (sourceError !== undefined) {
+    return { kind: 'source-error', message: sourceError };
+  }
+  if (entry === undefined || entry.kind !== 'component') {
+    return { kind: 'component-missing' };
+  }
+  const { component } = entry;
+  return component.stories?.some((story) => story.name === storyName)
+    ? { kind: 'found', component }
+    : { kind: 'story-missing', component };
+}
+
+/**
  * Whether `docs.show` failed: an unusable source, or an id that resolved to nothing.
  *
  * The handlers encode this in the outcome tag; the predicate stays exported because it is part of
  * the frozen `@storybook/mcp` API.
  */
-export function isDocsShowError({ entry, sourceError }: DocsShowOutput): boolean {
-  return sourceError !== undefined || entry === undefined;
+export function isDocsShowError(output: DocsShowOutput): boolean {
+  return resolveShow(output).kind !== 'found';
 }
 
 /** Whether `docs.showStory` failed: an unusable source, a missing component, or a missing story. */
-export function isDocsShowStoryError({
-  entry,
-  storyName,
-  sourceError,
-}: DocsShowStoryOutput): boolean {
-  if (sourceError !== undefined || entry === undefined || entry.kind !== 'component') {
-    return true;
-  }
-  return !entry.component.stories?.some((story) => story.name === storyName);
+export function isDocsShowStoryError(output: DocsShowStoryOutput): boolean {
+  return resolveShowStory(output).kind !== 'found';
 }
 
 function describeList(ctx: ToolsetCtx): string {
@@ -114,6 +152,40 @@ function formatEntryNotFound(id: string, storybookId: string | undefined, ctx: T
   return ctx.consumer === 'mcp'
     ? `Component or Docs Entry not found: "${id}"${suffix}. Use the ${getRef(ctx)('docs.list')} tool to see available components and documentation entries.`
     : `Component or Docs Entry not found: "${id}"${suffix}.`;
+}
+
+/** Pure renderer for `show`; the handler attaches it to both outcome branches. */
+function renderShow(data: DocsShowOutput, ctx: ToolsetCtx): string {
+  const resolution = resolveShow(data);
+  switch (resolution.kind) {
+    case 'source-error':
+      return resolution.message;
+    case 'entry-missing':
+      return formatEntryNotFound(data.id, data.storybookId, ctx);
+    case 'found':
+      return resolution.entry.kind === 'doc'
+        ? formatDocsManifest(resolution.entry.doc)
+        : formatComponentManifest(resolution.entry.component);
+  }
+}
+
+/** Pure renderer for `showStory`. */
+function renderShowStory(data: DocsShowStoryOutput, ctx: ToolsetCtx): string {
+  const resolution = resolveShowStory(data);
+  switch (resolution.kind) {
+    case 'source-error':
+      return resolution.message;
+    case 'component-missing':
+      return ctx.consumer === 'mcp'
+        ? `Component not found: "${data.componentId}". Use the ${getRef(ctx)('docs.list')} tool to see available components.`
+        : `Component not found: "${data.componentId}".`;
+    case 'story-missing': {
+      const availableStories = resolution.component.stories?.map((story) => story.name).join(', ');
+      return `Story "${data.storyName}" not found for component "${data.componentId}". Available stories: ${availableStories || 'none'}`;
+    }
+    case 'found':
+      return formatStoryDocumentation(resolution.component, data.storyName);
+  }
 }
 
 const storybookIdField = {
@@ -183,42 +255,6 @@ export function createDocsToolset(options: CreateDocsToolsetOptions) {
   /** The access for a lookup, plus the id it was scoped to. */
   const access = (storybookId: string | undefined, ctx: ToolsetCtx) =>
     multiSource ? selectSource(sources, storybookId, ctx) : { access: docsAccess };
-
-  /** Pure renderer for `show`; the handler attaches it to both outcome branches. */
-  const renderShow = ({ id, entry, storybookId, sourceError }: DocsShowOutput, ctx: ToolsetCtx) => {
-    if (sourceError) {
-      return sourceError;
-    }
-    if (!entry) {
-      return formatEntryNotFound(id, storybookId, ctx);
-    }
-    return entry.kind === 'doc'
-      ? formatDocsManifest(entry.doc)
-      : formatComponentManifest(entry.component);
-  };
-
-  /** Pure renderer for `showStory`. */
-  const renderShowStory = (
-    { componentId, storyName, entry, sourceError }: DocsShowStoryOutput,
-    ctx: ToolsetCtx
-  ) => {
-    if (sourceError) {
-      return sourceError;
-    }
-    if (!entry || entry.kind !== 'component') {
-      return ctx.consumer === 'mcp'
-        ? `Component not found: "${componentId}". Use the ${getRef(ctx)('docs.list')} tool to see available components.`
-        : `Component not found: "${componentId}".`;
-    }
-
-    const story = entry.component.stories?.find((candidate) => candidate.name === storyName);
-    if (!story) {
-      const availableStories = entry.component.stories?.map((s) => s.name).join(', ');
-      return `Story "${storyName}" not found for component "${componentId}". Available stories: ${availableStories || 'none'}`;
-    }
-
-    return formatStoryDocumentation(entry.component, storyName);
-  };
 
   return defineToolset({
     id: 'docs',

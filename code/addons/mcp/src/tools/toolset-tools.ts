@@ -57,11 +57,21 @@ function resolveToolset(options: ToolsetToolOptions, server?: Server): AnyToolse
 }
 
 function resolveMethod(
-  options: ToolsetToolOptions,
-  server?: Server
+  toolset: AnyToolsetDefinition,
+  options: ToolsetToolOptions
 ): ToolsetMethod<any, AnyToolsetOutcome> {
   const [, methodName] = options.method.split('.');
-  return resolveToolset(options, server).methods[methodName];
+  return toolset.methods[methodName];
+}
+
+/**
+ * Whether an error's prose speaks to the agent and names its own recovery.
+ *
+ * The trait is a property read, not a class list: it travels with the instance even across bundle
+ * copies.
+ */
+function isAgentFacingError(error: unknown): error is Error {
+  return error instanceof Error && (error as { agentFacing?: boolean }).agentFacing === true;
 }
 
 /**
@@ -113,8 +123,7 @@ export async function callToolsetMethod(
   input: unknown
 ): Promise<StorybookAiToolCallResult> {
   const toolset = resolveToolset(options, server);
-  const [, methodName] = options.method.split('.');
-  const method: ToolsetMethod<any, AnyToolsetOutcome> = toolset.methods[methodName];
+  const method = resolveMethod(toolset, options);
   const ctx = buildContext(server, toolset);
 
   try {
@@ -128,10 +137,8 @@ export async function callToolsetMethod(
       ...(outcome.ok ? {} : { isError: true }),
     };
   } catch (error) {
-    // An agent-facing error's prose names its own recovery, so it is surfaced as-is instead of
-    // being wrapped as an unexpected failure. The trait is a property read, not a class list:
-    // it travels with the instance even across bundle copies.
-    if (error instanceof Error && (error as { agentFacing?: boolean }).agentFacing) {
+    // An agent-facing error is surfaced as-is instead of being wrapped as an unexpected failure.
+    if (isAgentFacingError(error)) {
       return { content: [{ type: 'text', text: error.message }], isError: true };
     }
     return errorToMCPContent(error);
@@ -140,7 +147,7 @@ export async function callToolsetMethod(
 
 /** Metadata for one toolset-backed MCP tool, with the frozen name and title. */
 export function getToolsetToolMetadata(options: ToolsetToolOptions) {
-  const method = resolveMethod(options);
+  const method = resolveMethod(resolveToolset(options), options);
   const descriptionCtx: ToolsetCtx = {
     consumer: 'mcp',
     getService: (serviceId, serviceOptions) => getService(serviceId as any, serviceOptions) as any,

@@ -21,12 +21,18 @@ const DTS_ARTIFACT = join(
   '../../../../../dist/shared/open-service/toolsets/docs/public.d.ts'
 );
 
-/** The only module specifiers the flat file may reference. */
+/**
+ * The only module specifiers the flat file may reference.
+ *
+ * Deliberately a copy of the entry's `portable.external` in `build-config.ts`, not derived from
+ * it: every allowed import is a dependency each consumer must declare, so widening the list has to
+ * be a reviewer-visible edit here rather than something the config change passes silently.
+ */
 const IMPORT_ALLOWLIST = ['valibot'];
 
 /**
- * Headroom over the current size (~64 KB), so ordinary edits pass but a bundling regression —
- * the shared-chunk entanglement this pass exists to prevent pulled in ~904 KB — does not.
+ * Headroom over the current size (~64 KB), so ordinary edits pass but a bundling regression does
+ * not — the shared-chunk entanglement this pass exists to prevent once pulled in ~904 KB.
  */
 const SIZE_BUDGET_BYTES = 100_000;
 

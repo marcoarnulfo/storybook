@@ -1238,19 +1238,19 @@ __metadata:
 
 "@storybook/addon-a11y@file:../../code/addons/a11y::locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A.":
   version: 10.6.0-alpha.3
-  resolution: "@storybook/addon-a11y@file:../../code/addons/a11y#../../code/addons/a11y::hash=aa71d3&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
+  resolution: "@storybook/addon-a11y@file:../../code/addons/a11y#../../code/addons/a11y::hash=9e229f&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
   dependencies:
     "@storybook/global": "npm:^5.0.0"
     axe-core: "npm:^4.2.0"
   peerDependencies:
     storybook: "workspace:^"
-  checksum: 10c0/7d60b6b602d491ecb71031c59c7b2087f8b96efbcb17f76353da1189b1aae8c00fad467613731b20766b414b4497f732c3d67acbc018f246f2fb386d7ed0d7b4
+  checksum: 10c0/d5ff8a53f3552e88853273caa82f47d3537cda25fe2c6365fc35fb35f83fe9a7d8558f866dc65c61deadb86d53e86ad1983a4c62af957420d565caadf9afab19
   languageName: node
   linkType: hard
 
 "@storybook/addon-docs@file:../../code/addons/docs::locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A.":
   version: 10.6.0-alpha.3
-  resolution: "@storybook/addon-docs@file:../../code/addons/docs#../../code/addons/docs::hash=4c51d3&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
+  resolution: "@storybook/addon-docs@file:../../code/addons/docs#../../code/addons/docs::hash=dfb78e&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
   dependencies:
     "@mdx-js/react": "npm:^3.0.0"
     "@storybook/csf-plugin": "workspace:*"
@@ -1265,13 +1265,13 @@ __metadata:
   peerDependenciesMeta:
     "@types/react":
       optional: true
-  checksum: 10c0/5309532d8fad0232a39469dda0d71fc9e89a3036e47c517194e4ea6487bfc269357bd15960775dac8700442a520f1acc465bb031dff6850e104452f2b2dcc662
+  checksum: 10c0/da3bed53b7857d0330259183db3df9f21dc539765b5841deba74fb9971cf2eb98625bdecaadb744389ca9842859aaf24159c50c2635b8b88f9a1ede6eb7e1be6
   languageName: node
   linkType: hard
 
 "@storybook/addon-mcp@file:../../code/addons/mcp::locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A.":
   version: 10.6.0-alpha.3
-  resolution: "@storybook/addon-mcp@file:../../code/addons/mcp#../../code/addons/mcp::hash=c0cbcb&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
+  resolution: "@storybook/addon-mcp@file:../../code/addons/mcp#../../code/addons/mcp::hash=3c921d&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
   dependencies:
     "@tmcp/adapter-valibot": "npm:^0.1.5"
     "@tmcp/transport-http": "npm:^0.8.5"
@@ -1283,24 +1283,24 @@ __metadata:
   peerDependenciesMeta:
     "@storybook/addon-vitest":
       optional: true
-  checksum: 10c0/2d10a5cceae3313f057b160fea0640149b3ce25e463f7ad62c1b15690209f04679c8b08e7af14bcb154fa56fa62ae54894af7111569b240b12f86011d9a066a0
+  checksum: 10c0/ecaf0a99ff22d1cf45ea1b267325058e89f05d5835bea2b75b25a7778ca0e23639c3292aed4540a3e9b20069ff43eec27d38836a1398183ca1744704c0b14f96
   languageName: node
   linkType: hard
 
 "@storybook/addon-themes@file:../../code/addons/themes::locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A.":
   version: 10.6.0-alpha.3
-  resolution: "@storybook/addon-themes@file:../../code/addons/themes#../../code/addons/themes::hash=3cb925&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
+  resolution: "@storybook/addon-themes@file:../../code/addons/themes#../../code/addons/themes::hash=ed1999&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
   dependencies:
     ts-dedent: "npm:^2.0.0"
   peerDependencies:
     storybook: "workspace:^"
-  checksum: 10c0/5894673a22667922ed6e3a05c372c4425947802101d4c21a381d105891e756b53bb569ba38d8e5060716b2b0f2d1bb86f23c4c64a2966bb8e51343796d85e3bc
+  checksum: 10c0/ac22e851331aa9001c35d77b33d39c266be21d01f5b257197a0de9198abd57e9a20161a371438313a372419471b680d95f19b11b9371e5732da3d1ee86df49d6
   languageName: node
   linkType: hard
 
 "@storybook/addon-vitest@file:../../code/addons/vitest::locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A.":
   version: 10.6.0-alpha.3
-  resolution: "@storybook/addon-vitest@file:../../code/addons/vitest#../../code/addons/vitest::hash=ed7ecb&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
+  resolution: "@storybook/addon-vitest@file:../../code/addons/vitest#../../code/addons/vitest::hash=b3da95&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
   dependencies:
     "@storybook/global": "npm:^5.0.0"
     "@storybook/icons": "npm:^2.0.2"
@@ -1319,26 +1319,26 @@ __metadata:
       optional: true
     vitest:
       optional: true
-  checksum: 10c0/63a48d542a7c0cdafec303b6ccee23e32e6d4666ad1de43c315ad6b51553667e915ec484d5e2eba1129a2ca16c09d3cf4558c45d60c9591cff74a5459e430d05
+  checksum: 10c0/d83ae6ad1817d2441429dd2ca2e4b6b39e688b1332e37112d49eba7e932af31f6eb80910962701358d0ba436ebb5f948e33925103fad7c3730ad0568b52581dd
   languageName: node
   linkType: hard
 
 "@storybook/builder-vite@file:../../code/builders/builder-vite::locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A.":
   version: 10.6.0-alpha.3
-  resolution: "@storybook/builder-vite@file:../../code/builders/builder-vite#../../code/builders/builder-vite::hash=f53b28&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
+  resolution: "@storybook/builder-vite@file:../../code/builders/builder-vite#../../code/builders/builder-vite::hash=debc9c&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
   dependencies:
     "@storybook/csf-plugin": "workspace:*"
     ts-dedent: "npm:^2.0.0"
   peerDependencies:
     storybook: "workspace:^"
     vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
-  checksum: 10c0/31b8d8f898f84c5366e771c31031a1e3663f08b77790a230d25c3d79c2882f3e0808f99c61afb35eb219ba04a024e8eee4e3e47868f5ec43675972247b306d46
+  checksum: 10c0/e4cdb9db20ca171168a68f180d8c6255667ed5bf07fe7b2ee837407a838df984585788ff1d71b445c36c2554f035c80a13334fa983804a8bcbf4307f4903b4ef
   languageName: node
   linkType: hard
 
 "@storybook/csf-plugin@file:../../code/lib/csf-plugin::locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A.":
   version: 10.6.0-alpha.3
-  resolution: "@storybook/csf-plugin@file:../../code/lib/csf-plugin#../../code/lib/csf-plugin::hash=313eab&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
+  resolution: "@storybook/csf-plugin@file:../../code/lib/csf-plugin#../../code/lib/csf-plugin::hash=f32b1c&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
   dependencies:
     unplugin: "npm:^2.3.5"
   peerDependencies:
@@ -1356,7 +1356,7 @@ __metadata:
       optional: true
     webpack:
       optional: true
-  checksum: 10c0/4d2fc4d1ca784be009d1c7042a29cd16802713e1dee94a90021ca01564169ede663047f31ce46414df90a81f1bd48748a7898ecb53fed4ac7478470b3d68ce25
+  checksum: 10c0/15bab8140b06b8000960049778706d6f6ce9c0ecf31f7e0ffd58e2754710f08c4279de81b69a1acd4434362684fd4d9be0844a9f847719fa9e3d3a35c93aabd6
   languageName: node
   linkType: hard
 
@@ -1378,7 +1378,7 @@ __metadata:
 
 "@storybook/react-dom-shim@file:../../code/lib/react-dom-shim::locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A.":
   version: 10.6.0-alpha.3
-  resolution: "@storybook/react-dom-shim@file:../../code/lib/react-dom-shim#../../code/lib/react-dom-shim::hash=eda90f&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
+  resolution: "@storybook/react-dom-shim@file:../../code/lib/react-dom-shim#../../code/lib/react-dom-shim::hash=a1c5fe&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
   peerDependencies:
     "@types/react": ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
     "@types/react-dom": ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -1390,13 +1390,13 @@ __metadata:
       optional: true
     "@types/react-dom":
       optional: true
-  checksum: 10c0/58c5c5568e04f5aed1d55eafc387a39086d798c24e51391d41bc3dea03acbfb216714940c9fb173b48a8a6fd3c862781c3ccd88049a463f2cf745f3bbb901578
+  checksum: 10c0/f6978315ab8ca0334f48bcfa438912eefe2a37f2798cf5f3682fa4d7e091893dfc209687e1778fb563636f9ea05fc694890918987f2d92aac84b900908ac9d62
   languageName: node
   linkType: hard
 
 "@storybook/react-vite@file:../../code/frameworks/react-vite::locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A.":
   version: 10.6.0-alpha.3
-  resolution: "@storybook/react-vite@file:../../code/frameworks/react-vite#../../code/frameworks/react-vite::hash=7fc985&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
+  resolution: "@storybook/react-vite@file:../../code/frameworks/react-vite#../../code/frameworks/react-vite::hash=ed2f1a&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
   dependencies:
     "@joshwooding/vite-plugin-react-docgen-typescript": "npm:^0.7.0"
     "@rollup/pluginutils": "npm:^5.0.2"
@@ -1416,13 +1416,13 @@ __metadata:
   peerDependenciesMeta:
     typescript:
       optional: true
-  checksum: 10c0/9fd7188ade399c5576ee7dff19266f52409c90eae3287a8e21e0253573437187a3234b00b004d2af0100f91d02eac961dd433ad3445239732ac52023d409813f
+  checksum: 10c0/4717a19467b811e45bd49223d72e1e5075a44ea92c4b6886229655029d9d55599c808b9c871d3f111734324f23b7f323da9ac225eecd2065ac18a0148615f90d
   languageName: node
   linkType: hard
 
 "@storybook/react@file:../../code/renderers/react::locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A.":
   version: 10.6.0-alpha.3
-  resolution: "@storybook/react@file:../../code/renderers/react#../../code/renderers/react::hash=5221eb&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
+  resolution: "@storybook/react@file:../../code/renderers/react#../../code/renderers/react::hash=4e750f&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
   dependencies:
     "@storybook/global": "npm:^5.0.0"
     "@storybook/react-dom-shim": "workspace:*"
@@ -1442,7 +1442,7 @@ __metadata:
       optional: true
     typescript:
       optional: true
-  checksum: 10c0/705dccc0643ca8c0a614d02dbaf1cb4e4aa7a6251bb83b16abf5b8937f0808de41b0803ad3426bb96c8f8458e42220c177cf7cc16748272159314e9da1560c44
+  checksum: 10c0/7ea7445ddd3a6fbb2f017aa0d7507f222e39944f57c75c58bdace4d3594a1b5ba95ee58141fc4565b28911523c60fd5bb4a0c39a02bacc4dc66e3ffc25ed06ca
   languageName: node
   linkType: hard
 
@@ -3316,7 +3316,7 @@ __metadata:
 
 "storybook@file:../../code/core::locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A.":
   version: 10.6.0-alpha.3
-  resolution: "storybook@file:../../code/core#../../code/core::hash=f351e9&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
+  resolution: "storybook@file:../../code/core#../../code/core::hash=dbba78&locator=%40storybook%2Ftest-storybook-mcp%40workspace%3A."
   dependencies:
     "@storybook/global": "npm:^5.0.0"
     "@storybook/icons": "npm:^2.0.2"
@@ -3348,7 +3348,7 @@ __metadata:
       optional: true
   bin:
     storybook: ./dist/bin/dispatcher.js
-  checksum: 10c0/503087439db76ece96507b13821f9221cad63f182ef66edb543b647fc5c0ae077d329e9d22e53a970556769f8fda26360b2750be02d725f0be20f284c6c7a242
+  checksum: 10c0/615c23f93deb568d3b8c966fddd64f33b0c42eff4118d7f270a24cbc3e86927720b867dc58262482ff9af1be923393b0e2462d2fe6a80061596c64b2642d3f6f
   languageName: node
   linkType: hard
 

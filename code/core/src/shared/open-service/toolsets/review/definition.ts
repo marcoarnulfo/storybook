@@ -127,7 +127,9 @@ function formatReviewApplied(
 
   // Agents were observed ending visual work at the tool result, so the result itself has to
   // carry both follow-ups: open the page, and surface the link in the final response.
-  return `${summary} Storybook is already running at ${ctx.origin} — reuse it. Do NOT start another Storybook or change its port to view this review; the running instance already serves it.
+  // The running instance is named by the same UI root the review link is built from — for a
+  // sub-path-hosted Storybook the bare origin is not an address the agent can reach.
+  return `${summary} Storybook is already running at ${ctx.uiRoot ?? ctx.origin} — reuse it. Do NOT start another Storybook or change its port to view this review; the running instance already serves it.
 
 Two things you must do now, both of them:
 1. **Open ${reviewUrl} yourself in your preview browser.** If you have any browser-preview or navigate tool in this session (e.g. preview_eval or an equivalent), call it on this URL so the review opens in your preview window immediately. Don't merely print the link and stop — actually open it.
