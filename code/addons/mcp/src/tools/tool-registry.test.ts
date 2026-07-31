@@ -64,6 +64,27 @@ describe('a broken tool row', () => {
     expect(names).toEqual(expect.arrayContaining(['preview-stories', 'list-all-documentation']));
     expect(loggerError).toHaveBeenCalledWith(expect.stringContaining('run-story-tests'));
   });
+
+  it('contains only the missing-toolset case: any other adapter failure still fails fast', () => {
+    registerToolset(
+      defineToolset({
+        id: 'test',
+        description: 'stub',
+        methods: {
+          run: {
+            schema: v.object({}),
+            description: () => {
+              throw new Error('broken description');
+            },
+            handler: async () => ({}),
+            format: () => '',
+          },
+        },
+      }) as any
+    );
+
+    expect(() => getAddonToolMetadata(context)).toThrow('broken description');
+  });
 });
 
 describe('run-story-tests isError mapping', () => {

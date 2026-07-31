@@ -1,6 +1,7 @@
 import type { McpServer } from 'tmcp';
 import type { Options } from 'storybook/internal/types';
 import { logger } from 'storybook/internal/node-logger';
+import { OpenServiceMissingToolsetError } from 'storybook/internal/server-errors';
 import {
   createCompositionDocsSources,
   createDocsToolset,
@@ -276,15 +277,26 @@ const addonToolDefinitions: AddonToolDefinition[] = [
 ];
 
 /**
- * Contains a broken tool row to that row.
+ * Logs and drops one tool row when its availability gate said yes but the backing toolset never
+ * registered.
  *
- * An availability gate saying yes while the backing toolset never registered is a wiring bug
- * (each gate is written to match its toolset's registration condition), but it must cost the
- * user one tool, not the whole MCP server or the `storybook ai` metadata build. The error log
- * keeps the mismatch loud; everything else about `getToolset` stays fail-fast.
+ * That mismatch is a wiring bug (each gate is written to match its toolset's registration
+ * condition), but it must cost the user one tool, not the whole MCP server or the `storybook ai`
+ * metadata build — the error log keeps it loud. Only this one error is contained: every other
+ * failure rethrows, so a genuinely broken adapter still fails fast.
  */
-function logDroppedToolRow(name: string, error: unknown): undefined {
-  logger.error(`Skipping MCP tool "${name}", its backing toolset failed to resolve: ${error}`);
+// The name check backs up `instanceof`: the error can be constructed by a different copy of the
+// class when the registry and this adapter resolve through different core entries (or src vs
+// dist in tests), and `StorybookError` embeds the stable error name in `Error#name`.
+const isMissingToolsetError = (error: unknown): boolean =>
+  error instanceof OpenServiceMissingToolsetError ||
+  (error instanceof Error && error.name.includes('OpenServiceMissingToolsetError'));
+
+function dropRowIfToolsetMissing(name: string, error: unknown): undefined {
+  if (!isMissingToolsetError(error)) {
+    throw error;
+  }
+  logger.error(`Skipping MCP tool "${name}", its backing toolset is not registered: ${error}`);
   return undefined;
 }
 
@@ -292,7 +304,7 @@ function resolveDefinitionOrDrop<T>(name: string, resolve: () => T): T | undefin
   try {
     return resolve();
   } catch (error) {
-    return logDroppedToolRow(name, error);
+    return dropRowIfToolsetMissing(name, error);
   }
 }
 
@@ -342,7 +354,7 @@ export async function registerAddonMcpTools(
           createToolsetEnabled(server, definition.toolset)
         );
       } catch (error) {
-        logDroppedToolRow(definition.name, error);
+        dropRowIfToolsetMissing(definition.name, error);
       }
     }
   }

@@ -2,7 +2,6 @@ import { spawnSync } from 'node:child_process';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { sep } from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 import { basename, dirname, join, relative } from 'pathe';
 import picocolors from 'picocolors';
@@ -369,10 +368,7 @@ export async function generateTypesFiles(
   // core's per-file declarations in its own emit, so its `storybook/*` type imports can be
   // bundled tree-shakeably instead of from core's chunked dist declarations (see
   // createBundledStorybookTypesResolverPlugin).
-  const { default: packageJson } = await import(
-    pathToFileURL(join(cwd, 'package.json')).href,
-    { with: { type: 'json' } }
-  );
+  const packageJson = JSON.parse(await readFile(join(cwd, 'package.json'), 'utf8'));
   const bundlesStorybook =
     'storybook' in (packageJson.devDependencies ?? {}) && !externalFn('storybook');
   const include = [
