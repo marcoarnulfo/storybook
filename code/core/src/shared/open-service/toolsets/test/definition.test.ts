@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as v from 'valibot';
 
 import type { ToolsetCtx } from '../../toolset-definition.ts';
-import type { TestRunData, TestRunOutput, TestRunResult } from './definition.ts';
+import type { TestRunOutput, TestRunResult } from './definition.ts';
 import { createTestToolset } from './definition.ts';
 import { runStoryTests } from './run.ts';
 
@@ -71,18 +71,24 @@ beforeEach(() => {
   toolset = createTestToolset({ channel, storyIndex, a11yEnabled: true });
 });
 
-function runTests(input: v.InferInput<typeof toolset.methods.run.schema> = {}) {
-  return toolset.methods.run.handler(v.parse(toolset.methods.run.schema, input), ctx);
+function runTests(
+  input: v.InferInput<typeof toolset.methods.run.schema> = {},
+  runCtx: ToolsetCtx = ctx
+) {
+  return toolset.methods.run.handler(v.parse(toolset.methods.run.schema, input), runCtx);
 }
 
-/** Renders run data the way the MCP adapter will. */
-function formatForMcp(data: TestRunData): string {
-  return toolset.methods.run.format(data, mcpCtx);
+/** Runs and renders the way the MCP adapter does: one handler call, markdown from the outcome. */
+async function runForMcp(input: v.InferInput<typeof toolset.methods.run.schema> = {}) {
+  return runTests(input, mcpCtx);
 }
 
 describe('test API', () => {
   it('runs all stories and reports the requested a11y flag alongside the outcome', async () => {
-    await expect(runTests()).resolves.toEqual({ ...completedRun, a11y: true });
+    const outcome = await runTests();
+
+    expect(outcome.ok).toBe(true);
+    expect(outcome.data).toEqual({ ...completedRun, a11y: true });
     expect(runStoryTests).toHaveBeenCalledWith({
       channel,
       getIndex,
@@ -92,9 +98,9 @@ describe('test API', () => {
   });
 
   it('summarizes counts for the CLI consumer', async () => {
-    const data = await runTests();
+    const outcome = await runTests();
 
-    expect(toolset.methods.run.format(data, ctx)).toBe(
+    expect(outcome.markdown).toBe(
       [
         '# Test run completed',
         '- Total tests: 3',
@@ -119,7 +125,10 @@ describe('test API', () => {
 
     completePendingRun();
     await firstRun;
-    await expect(secondRun).resolves.toEqual({ ...completedRun, a11y: true });
+    await expect(secondRun).resolves.toMatchObject({
+      ok: true,
+      data: { ...completedRun, a11y: true },
+    });
     expect(runStoryTests).toHaveBeenCalledTimes(2);
   });
 
@@ -151,7 +160,7 @@ describe('test API', () => {
         })
       );
 
-      expect(formatForMcp(await runTests())).toBe(`## Passing Stories
+      expect((await runForMcp()).markdown).toBe(`## Passing Stories
 
 - button--primary`);
     });
@@ -171,7 +180,7 @@ describe('test API', () => {
         })
       );
 
-      expect(formatForMcp(await runTests())).toBe(`## Passing Stories
+      expect((await runForMcp()).markdown).toBe(`## Passing Stories
 
 - button--primary
 
@@ -211,7 +220,7 @@ Expected button text to be "Secondary"`);
         })
       );
 
-      expect(formatForMcp(await runTests())).toBe(`## Passing Stories
+      expect((await runForMcp()).markdown).toBe(`## Passing Stories
 
 - button--primary
 
@@ -248,7 +257,7 @@ Color contrast ratio is insufficient
         })
       );
 
-      expect(formatForMcp(await runTests({ a11y: false }))).toBe(`## Passing Stories
+      expect((await runForMcp({ a11y: false })).markdown).toBe(`## Passing Stories
 
 - button--primary`);
     });
@@ -268,7 +277,7 @@ Color contrast ratio is insufficient
         })
       );
 
-      expect(formatForMcp(await runTests())).toBe(`## Unhandled Errors
+      expect((await runForMcp()).markdown).toBe(`## Unhandled Errors
 
 ### ReferenceError
 
@@ -289,29 +298,36 @@ ReferenceError: foo is not defined
         ],
       });
 
-      const data = await runTests({
+      const outcome = await runForMcp({
         stories: [{ storyId: 'missing--story' }, { storyId: 'gone--story' }],
       });
 
-      expect(formatForMcp(data)).toBe(`No stories found matching the provided input.
+      expect(outcome.ok).toBe(true);
+      expect(outcome.markdown).toBe(`No stories found matching the provided input.
 
 No story found for story ID "missing--story"
 No story found for story ID "gone--story"`);
     });
 
-    it('surfaces a failed run as an error line', async () => {
+    it('flags a failed run as a failure while still rendering the error line', async () => {
       vi.mocked(runStoryTests).mockResolvedValue({
         status: 'error',
         error: { message: 'Vitest failed to start' },
       });
 
-      expect(formatForMcp(await runTests())).toBe('Error: Vitest failed to start');
+      const outcome = await runForMcp();
+
+      expect(outcome.ok).toBe(false);
+      expect(outcome.markdown).toBe('Error: Vitest failed to start');
     });
 
-    it('surfaces a cancelled run as an error line', async () => {
+    it('flags a cancelled run as a failure while still rendering the error line', async () => {
       vi.mocked(runStoryTests).mockResolvedValue({ status: 'cancelled' });
 
-      expect(formatForMcp(await runTests())).toBe('Error: Test run was cancelled');
+      const outcome = await runForMcp();
+
+      expect(outcome.ok).toBe(false);
+      expect(outcome.markdown).toBe('Error: Test run was cancelled');
     });
   });
 

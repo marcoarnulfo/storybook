@@ -1,6 +1,6 @@
 import * as v from 'valibot';
 
-import { defineToolset, type ToolsetCtx } from '../../toolset-definition.ts';
+import { defineToolset, type ToolsetCtx, type ToolsetOutcome } from '../../toolset-definition.ts';
 import type { StoryIndexAccess } from '../stories/definition.ts';
 import { storyInputArraySchema } from '../stories/story-input.ts';
 import { formatTestRun, summarizeTestRun } from './format.ts';
@@ -85,10 +85,23 @@ export type TestRunResult = v.InferOutput<typeof testRunResultSchema>;
 export type TestRunOutput = v.InferOutput<typeof testRunOutputSchema>;
 
 /**
- * What `run` hands to its formatter: the outcome plus whether accessibility tests were part of this
- * run, which the result payload itself does not state.
+ * What `run` renders: the run result plus whether accessibility tests were part of this run, which
+ * the result payload itself does not state.
  */
 export type TestRunData = TestRunOutput & { a11y: boolean };
+
+/**
+ * The outcome split for `test.run`: a crashed or cancelled run is a failure that still carries its
+ * full report, so clients keying on the tag cannot count it as a pass while agents keep the
+ * diagnostic detail.
+ */
+export type TestRunSuccessData = Extract<TestRunOutput, { status: 'completed' | 'no-stories' }> & {
+  a11y: boolean;
+};
+
+export type TestRunFailureData = Extract<TestRunOutput, { status: 'error' | 'cancelled' }> & {
+  a11y: boolean;
+};
 
 const runInputSchema = v.object({
   stories: v.optional(
@@ -190,7 +203,10 @@ export function createTestToolset({ channel, storyIndex, a11yEnabled }: CreateTe
       run: {
         schema: runInputSchema,
         description: describeRun(a11yEnabled),
-        handler: async (input, ctx): Promise<TestRunData> => {
+        handler: async (
+          input,
+          ctx
+        ): Promise<ToolsetOutcome<TestRunSuccessData, TestRunFailureData>> => {
           const done = await queue.wait();
           try {
             const output = await runStoryTests({
@@ -203,12 +219,14 @@ export function createTestToolset({ channel, storyIndex, a11yEnabled }: CreateTe
 
             await reportRunTelemetry(data, input, ctx);
 
-            return data;
+            const markdown = formatTestRun(data, ctx);
+            return data.status === 'error' || data.status === 'cancelled'
+              ? { ok: false, data, markdown }
+              : { ok: true, data, markdown };
           } finally {
             done();
           }
         },
-        format: (data, ctx) => formatTestRun(data, ctx),
       },
     },
   });

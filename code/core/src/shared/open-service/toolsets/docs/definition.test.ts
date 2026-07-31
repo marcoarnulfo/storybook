@@ -49,20 +49,19 @@ const cliCtx: ToolsetCtx = { consumer: 'cli', getService: () => ({}) as never };
 
 describe('docs.list', () => {
   it('returns the manifests from the access and renders the list Markdown', async () => {
-    const data = await toolset.methods.list.handler({ withStoryIds: false });
+    const outcome = await toolset.methods.list.handler({ withStoryIds: false }, mcpCtx);
 
-    expect(Object.keys(data.manifests!.componentManifest.components)).toEqual(['button']);
-
-    const text = toolset.methods.list.format(data);
-    expect(text).toContain('button');
-    expect(text).toContain('Guide');
-    expect(text).not.toContain('button--primary');
+    expect(outcome.ok).toBe(true);
+    expect(Object.keys(outcome.data.manifests!.componentManifest.components)).toEqual(['button']);
+    expect(outcome.markdown).toContain('button');
+    expect(outcome.markdown).toContain('Guide');
+    expect(outcome.markdown).not.toContain('button--primary');
   });
 
   it('includes story ids only when requested', async () => {
-    const data = await toolset.methods.list.handler({ withStoryIds: true });
+    const outcome = await toolset.methods.list.handler({ withStoryIds: true }, mcpCtx);
 
-    expect(toolset.methods.list.format(data)).toContain('button--primary');
+    expect(outcome.markdown).toContain('button--primary');
   });
 
   it('cross-references the show tool per consumer in its description', () => {
@@ -77,35 +76,38 @@ describe('docs.list', () => {
 
 describe('docs.show', () => {
   it('renders component documentation for a known component id', async () => {
-    const data = await toolset.methods.show.handler({ id: 'button' }, mcpCtx);
+    const outcome = await toolset.methods.show.handler({ id: 'button' }, mcpCtx);
 
-    expect(data.entry?.kind).toBe('component');
-    expect(toolset.methods.show.format(data, mcpCtx)).toContain('Button');
+    expect(outcome.ok).toBe(true);
+    expect(outcome.data.entry?.kind).toBe('component');
+    expect(outcome.markdown).toContain('Button');
   });
 
   it('renders standalone docs entries', async () => {
-    const data = await toolset.methods.show.handler({ id: 'guide--docs' }, mcpCtx);
+    const outcome = await toolset.methods.show.handler({ id: 'guide--docs' }, mcpCtx);
 
-    expect(data.entry?.kind).toBe('doc');
-    expect(toolset.methods.show.format(data, mcpCtx)).toContain('Guide');
+    expect(outcome.ok).toBe(true);
+    expect(outcome.data.entry?.kind).toBe('doc');
+    expect(outcome.markdown).toContain('Guide');
   });
 
-  it('answers unknown ids with the @storybook/mcp miss message on MCP', async () => {
-    const data = await toolset.methods.show.handler({ id: 'nope' }, mcpCtx);
+  it('answers unknown ids with a failure carrying the @storybook/mcp miss message', async () => {
+    const outcome = await toolset.methods.show.handler({ id: 'nope' }, mcpCtx);
 
-    expect(data.entry).toBeUndefined();
-    expect(toolset.methods.show.format(data, mcpCtx)).toBe(
+    expect(outcome.ok).toBe(false);
+    expect(outcome.data.entry).toBeUndefined();
+    expect(outcome.markdown).toBe(
       'Component or Docs Entry not found: "nope". Use the list-all-documentation tool to see available components and documentation entries.'
     );
-    expect(toolset.methods.show.format(data, cliCtx)).toBe(
-      'Component or Docs Entry not found: "nope".'
-    );
+
+    const cliOutcome = await toolset.methods.show.handler({ id: 'nope' }, cliCtx);
+    expect(cliOutcome.markdown).toBe('Component or Docs Entry not found: "nope".');
   });
 });
 
 describe('docs.showStory', () => {
   it('renders the story documentation for a known story name', async () => {
-    const data = await toolset.methods.showStory.handler(
+    const outcome = await toolset.methods.showStory.handler(
       {
         componentId: 'button',
         storyName: 'Primary',
@@ -113,11 +115,12 @@ describe('docs.showStory', () => {
       mcpCtx
     );
 
-    expect(toolset.methods.showStory.format(data, mcpCtx)).toContain('<Button />');
+    expect(outcome.ok).toBe(true);
+    expect(outcome.markdown).toContain('<Button />');
   });
 
-  it('lists available stories when the story name misses', async () => {
-    const data = await toolset.methods.showStory.handler(
+  it('lists available stories in a failure when the story name misses', async () => {
+    const outcome = await toolset.methods.showStory.handler(
       {
         componentId: 'button',
         storyName: 'Missing',
@@ -125,13 +128,14 @@ describe('docs.showStory', () => {
       mcpCtx
     );
 
-    expect(toolset.methods.showStory.format(data, mcpCtx)).toBe(
+    expect(outcome.ok).toBe(false);
+    expect(outcome.markdown).toBe(
       'Story "Missing" not found for component "button". Available stories: Primary'
     );
   });
 
   it('answers unknown components with the miss message per consumer', async () => {
-    const data = await toolset.methods.showStory.handler(
+    const outcome = await toolset.methods.showStory.handler(
       {
         componentId: 'nope',
         storyName: 'Primary',
@@ -139,15 +143,21 @@ describe('docs.showStory', () => {
       mcpCtx
     );
 
-    expect(toolset.methods.showStory.format(data, mcpCtx)).toBe(
+    expect(outcome.ok).toBe(false);
+    expect(outcome.markdown).toBe(
       'Component not found: "nope". Use the list-all-documentation tool to see available components.'
     );
-    expect(toolset.methods.showStory.format(data, cliCtx)).toBe('Component not found: "nope".');
+
+    const cliOutcome = await toolset.methods.showStory.handler(
+      { componentId: 'nope', storyName: 'Primary' },
+      cliCtx
+    );
+    expect(cliOutcome.markdown).toBe('Component not found: "nope".');
   });
 });
 
 describe('usage reporting', () => {
-  /** Runs a method end-to-end the way a consumer does: handler, format, then reportUsage. */
+  /** Runs a method the way a consumer does; the handler reports usage inline. */
   async function run(methodName: 'list' | 'show', input: unknown, consumer: 'cli' | 'mcp') {
     const events: Array<[string, Record<string, unknown>]> = [];
     const ctx: ToolsetCtx = {
@@ -158,11 +168,7 @@ describe('usage reporting', () => {
       },
     };
 
-    const method = toolset.methods[methodName];
-    const data = await method.handler(input as never, ctx);
-    const formatted = method.format(data as never, ctx);
-    const text = Array.isArray(formatted) ? formatted.join('\n') : formatted;
-    await method.reportUsage?.({ input: input as never, data: data as never, text }, ctx);
+    await toolset.methods[methodName].handler(input as never, ctx);
 
     return events;
   }

@@ -1,7 +1,12 @@
 import * as v from 'valibot';
 import { describe, expectTypeOf, it } from 'vitest';
 
-import { defineToolset, type ToolsetCtx, type ToolsetDefinition } from './index.ts';
+import {
+  defineToolset,
+  type ToolsetCtx,
+  type ToolsetDefinition,
+  type ToolsetOutcome,
+} from './index.ts';
 
 const exampleToolset = defineToolset({
   id: 'example',
@@ -10,8 +15,11 @@ const exampleToolset = defineToolset({
     greet: {
       description: 'Greets a person.',
       schema: v.object({ name: v.string() }),
-      handler: async ({ name }) => ({ greeting: `Hello ${name}` }),
-      format: (data) => data.greeting,
+      handler: async ({ name }): Promise<ToolsetOutcome<{ greeting: string }, never>> => ({
+        ok: true,
+        data: { greeting: `Hello ${name}` },
+        markdown: `Hello ${name}`,
+      }),
     },
   },
 });
@@ -24,11 +32,13 @@ const reviewToolset = defineToolset({
       description: (ctx) => `Create a review (${ctx.consumer})`,
       schema: v.object({ title: v.string() }),
       outputSchema: v.object({ title: v.string() }),
-      handler: async (input, ctx): Promise<{ title: string; origin?: string }> => ({
-        title: input.title,
-        origin: ctx.origin,
-      }),
-      format: (data) => data.title,
+      handler: async (
+        input,
+        ctx
+      ): Promise<ToolsetOutcome<{ title: string; origin?: string }, { reason: string }>> =>
+        input.title
+          ? { ok: true, data: { title: input.title, origin: ctx.origin }, markdown: input.title }
+          : { ok: false, data: { reason: 'missing title' }, markdown: 'missing title' },
     },
   },
 });
@@ -37,26 +47,41 @@ describe('defineToolset types', () => {
   // Assertions live outside the definition literal: inside it, the first contextual-typing pass
   // sees `any`/`unknown` params, so exact-type checks there would report on the wrong pass.
   it('types handler input from the method schema', () => {
-    const greet: (input: { name: string }, context: ToolsetCtx) => Promise<{ greeting: string }> =
+    const greet: (
+      input: { name: string },
+      context: ToolsetCtx
+    ) => Promise<ToolsetOutcome<{ greeting: string }, never>> =
       exampleToolset.methods.greet.handler;
     const create: (
       input: { title: string },
       context: ToolsetCtx
-    ) => Promise<{ title: string; origin?: string }> = reviewToolset.methods.create.handler;
+    ) => Promise<ToolsetOutcome<{ title: string; origin?: string }, { reason: string }>> =
+      reviewToolset.methods.create.handler;
 
     expectTypeOf(greet).toBeFunction();
     expectTypeOf(create).toBeFunction();
     expectTypeOf(exampleToolset).toMatchTypeOf<ToolsetDefinition>();
   });
 
-  it('types format input from the handler return type', () => {
-    const greetFormat: (data: { greeting: string }, context: ToolsetCtx) => string =
-      exampleToolset.methods.greet.format;
-    const createFormat: (data: { title: string; origin?: string }, context: ToolsetCtx) => string =
-      reviewToolset.methods.create.format;
+  it('narrows both branches of an outcome on its tag', async () => {
+    const outcome = await reviewToolset.methods.create.handler(
+      { title: 'x' },
+      { consumer: 'cli', getService: () => ({}) as never }
+    );
 
-    expectTypeOf(greetFormat).toBeFunction();
-    expectTypeOf(createFormat).toBeFunction();
+    if (outcome.ok) {
+      expectTypeOf(outcome.data).toEqualTypeOf<{ title: string; origin?: string }>();
+    } else {
+      expectTypeOf(outcome.data).toEqualTypeOf<{ reason: string }>();
+    }
+  });
+
+  it('makes the failure branch unreachable for infallible methods', async () => {
+    const outcome = await exampleToolset.methods.greet.handler({ name: 'x' });
+
+    if (!outcome.ok) {
+      expectTypeOf(outcome.data).toBeNever();
+    }
   });
 
   it('resolves description functions against the toolset context', () => {

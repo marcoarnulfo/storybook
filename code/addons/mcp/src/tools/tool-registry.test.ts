@@ -1,7 +1,7 @@
 /**
- * Registry-level contracts: what survives when a backing toolset is broken, and how test-run
- * outcomes map onto the MCP `isError` flag. Both were regressions the e2e happy paths could not
- * see, so they are pinned here at the adapter seam.
+ * Registry-level contracts: what survives when a backing toolset is broken. A regression here was
+ * invisible to the e2e happy paths, so it is pinned at the adapter seam. How an outcome's tag maps
+ * onto the MCP `isError` flag is the generic unwrap's contract, pinned in `toolset-tools.test.ts`.
  */
 
 import { clearToolsetRegistry, defineToolset, registerToolset } from 'storybook/open-service';
@@ -31,8 +31,7 @@ function registerTestToolsetThrowing(error: Error) {
           description: () => {
             throw error;
           },
-          handler: async () => ({}),
-          format: () => '',
+          handler: async () => ({ ok: true, data: {}, markdown: '' }),
         },
       },
     }) as any
@@ -92,13 +91,20 @@ describe('a broken tool row', () => {
   });
 });
 
-describe('run-story-tests isError mapping', () => {
+describe('run-story-tests over the registry', () => {
   // Availability narrowed so only rows whose toolsets are registered here resolve.
   const context = {
     availability: { testSupported: true, docsEnabled: false, a11yEnabled: false },
   } as never;
 
-  function registerWithTestRun(handler: () => unknown) {
+  beforeEach(() => {
+    clearToolsetRegistry();
+  });
+
+  // One integration probe through the real `test` toolset: a crashed run must reach the MCP
+  // client flagged as an error with the report rendered. The per-status tag mapping lives on the
+  // definition (`test/definition.test.ts`), the tag-to-isError unwrap in `toolset-tools.test.ts`.
+  it('flags a crashed run as an error result end to end', async () => {
     registerCoreToolsetsForTest({ testToolset: false });
     registerToolset(
       defineToolset({
@@ -108,44 +114,21 @@ describe('run-story-tests isError mapping', () => {
           run: {
             schema: v.object({}),
             description: 'run',
-            handler: async () => handler(),
-            format: () => 'rendered run',
+            handler: async () => ({
+              ok: false,
+              data: { status: 'error', error: { message: 'vitest died' } },
+              markdown: 'Error: vitest died',
+            }),
           },
         },
       }) as any
     );
-  }
-
-  async function callRun(handler: () => unknown) {
-    registerWithTestRun(handler);
     const { server, tools } = makeServer();
     await registerAddonMcpTools(server, context);
-    return tools.get('run-story-tests')!({});
-  }
 
-  beforeEach(() => {
-    clearToolsetRegistry();
-  });
+    const result = await tools.get('run-story-tests')!({});
 
-  it('flags a crashed run as an error result', async () => {
-    const result = await callRun(() => ({ status: 'error', error: { message: 'vitest died' } }));
     expect(result.isError).toBe(true);
-  });
-
-  it('flags a cancelled run as an error result', async () => {
-    const result = await callRun(() => ({ status: 'cancelled' }));
-    expect(result.isError).toBe(true);
-  });
-
-  it('keeps a completed run a success result', async () => {
-    const result = await callRun(() => ({ status: 'completed', result: {} }));
-    expect(result.isError).toBeUndefined();
-  });
-
-  it('keeps a timeout an error result via the throw path', async () => {
-    const result = await callRun(() => {
-      throw new Error('Test run timed out after 1800000ms');
-    });
-    expect(result.isError).toBe(true);
+    expect(result.content).toEqual([{ type: 'text', text: 'Error: vitest died' }]);
   });
 });

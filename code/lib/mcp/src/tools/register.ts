@@ -15,9 +15,7 @@ import {
   createDocsToolset,
   createProviderDocsAccess,
   emptyManifests,
-  isDocsShowError,
   selectReportedManifests,
-  isDocsShowStoryError,
   MCP_TOOL_NAMES,
   MCP_TOOL_TITLES,
   resolveToolsetDescription,
@@ -25,6 +23,7 @@ import {
   type DocsSource,
   type DocsToolset,
   type ToolsetCtx,
+  type ToolsetOutcome,
 } from 'storybook/internal/toolsets-docs';
 
 import type { StorybookContext } from '../types.ts';
@@ -148,7 +147,7 @@ export function getStoryDocumentationToolMetadata(options?: {
 }
 
 /**
- * Runs one method against the request's toolset and shapes it into an MCP result.
+ * Runs one method against the request's toolset and unwraps its outcome into an MCP result.
  *
  * A manifest that cannot be fetched or parsed is reported as tool output rather than thrown, so the
  * agent reads why instead of receiving a transport error. `data` is undefined in that case, which
@@ -157,33 +156,22 @@ export function getStoryDocumentationToolMetadata(options?: {
 async function call<TMethod extends 'list' | 'show' | 'showStory'>(
   server: Server,
   method: TMethod,
-  input: unknown,
-  isError?: (data: any) => boolean
+  input: unknown
 ) {
   const context = server.ctx.custom;
 
   try {
     const definition = toolsetFor(context).methods[method];
-    const data = await (definition.handler as (i: unknown, c: ToolsetCtx) => Promise<unknown>)(
-      input,
-      ctx
-    );
-    const text = (definition.format as (d: unknown, c: ToolsetCtx) => string)(data, ctx);
-    // The toolset owns its usage events; an adapter that skips this silently stops reporting them.
-    await (
-      definition as {
-        reportUsage?: (
-          result: { input: unknown; data: unknown; text: string },
-          context: ToolsetCtx
-        ) => Promise<void> | void;
-      }
-    ).reportUsage?.({ input, data, text }, ctx);
+    const outcome = await (
+      definition.handler as (i: unknown, c: ToolsetCtx) => Promise<ToolsetOutcome<unknown>>
+    )(input, ctx);
+    const blocks = Array.isArray(outcome.markdown) ? outcome.markdown : [outcome.markdown];
 
     return {
-      data,
+      data: outcome.data,
       result: {
-        content: [{ type: 'text' as const, text }],
-        ...(isError?.(data) ? { isError: true as const } : {}),
+        content: blocks.map((text) => ({ type: 'text' as const, text })),
+        ...(outcome.ok ? {} : { isError: true as const }),
       },
     };
   } catch (error) {
@@ -229,7 +217,7 @@ export async function addGetDocumentationTool(
     { ...getDocumentationToolMetadata(options), enabled } as never,
     (async (input: { id: string; storybookId?: string }) => {
       const context = server.ctx.custom;
-      const { data, result } = await call(server, 'show', input, isDocsShowError);
+      const { data, result } = await call(server, 'show', input);
 
       // Skipped when the manifest itself could not be read: that is a transport failure, not a
       // lookup with an outcome to report.
@@ -267,7 +255,6 @@ export async function addGetStoryDocumentationTool(
 ) {
   server.tool(
     { ...getStoryDocumentationToolMetadata(options), enabled } as never,
-    (async (input: unknown) =>
-      (await call(server, 'showStory', input, isDocsShowStoryError)).result) as never
+    (async (input: unknown) => (await call(server, 'showStory', input)).result) as never
   );
 }

@@ -4,8 +4,6 @@ import { logger } from 'storybook/internal/node-logger';
 import {
   createCompositionDocsSources,
   createDocsToolset,
-  isDocsShowError,
-  isDocsShowStoryError,
   type DocsToolset,
 } from 'storybook/internal/toolsets-docs';
 import type { AddonContext } from '../types.ts';
@@ -135,13 +133,11 @@ const docsListOptions: ToolsetToolOptions = {
 const docsShowOptions: ToolsetToolOptions = {
   method: 'docs.show',
   telemetryToolset: 'docs',
-  resultIsError: (data) => isDocsShowError(data as never),
 };
 
 const docsShowStoryOptions: ToolsetToolOptions = {
   method: 'docs.showStory',
   telemetryToolset: 'docs',
-  resultIsError: (data) => isDocsShowStoryError(data as never),
 };
 
 /**
@@ -265,12 +261,6 @@ const addonToolDefinitions: AddonToolDefinition[] = [
     options: {
       method: 'test.run',
       telemetryToolset: 'test',
-      // Failed and cancelled runs report through data (the old tool threw); the flag must come
-      // back or clients keying on `isError` count a crashed vitest run as a pass.
-      resultIsError: (data) => {
-        const status = (data as { status?: string }).status;
-        return status === 'error' || status === 'cancelled';
-      },
     },
   }),
   // Docs run on the core docs toolset in both modes. A composition builds its toolset per request,

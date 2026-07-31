@@ -16,7 +16,7 @@ vi.mock('../telemetry.ts', () => ({ collectTelemetry }));
  */
 function registerStubStoriesToolset(
   overrides: {
-    handler?: (input: unknown, ctx: any) => unknown;
+    handler?: (input: any, ctx: any) => any;
   } = {}
 ) {
   registerToolset(
@@ -32,12 +32,13 @@ function registerStubStoriesToolset(
             overrides.handler ??
             (async (input: { id: string }, ctx) => {
               await ctx.telemetry?.('tool:previewStories', { inputStoryCount: 1 });
+              const stories = [{ previewUrl: `${ctx.origin}/?path=/story/${input.id}` }];
               return {
-                stories: [{ previewUrl: `${ctx.origin}/?path=/story/${input.id}` }],
-                extraNotInContract: 'internal',
+                ok: true,
+                data: { stories, extraNotInContract: 'internal' },
+                markdown: stories.map((story) => story.previewUrl).join('\n'),
               };
             }),
-          format: (data: any) => data.stories.map((s: any) => s.previewUrl).join('\n'),
         },
       },
     }) as any
@@ -72,7 +73,7 @@ describe('toolset-backed MCP tools', () => {
     expect(metadata.description).toBe('describes mcp');
   });
 
-  it('returns formatted text and narrows structuredContent to the published output schema', async () => {
+  it('ships the outcome markdown and narrows structuredContent to the published output schema', async () => {
     registerStubStoriesToolset();
 
     const result = await callToolsetMethod(makeServer(), previewOptions, { id: 'button--primary' });
@@ -83,6 +84,41 @@ describe('toolset-backed MCP tools', () => {
     expect(result.structuredContent).toEqual({
       stories: [{ previewUrl: 'http://localhost:6006/?path=/story/button--primary' }],
     });
+    expect(result.isError).toBeUndefined();
+  });
+
+  it('maps a failure outcome to an MCP error result that still carries the markdown', async () => {
+    registerStubStoriesToolset({
+      handler: async () => ({
+        ok: false,
+        data: { stories: [] },
+        markdown: 'Component or Docs Entry not found: "nope".',
+      }),
+    });
+
+    const result = await callToolsetMethod(makeServer(), previewOptions, { id: 'nope' });
+
+    expect(result.isError).toBe(true);
+    expect(result.content).toEqual([
+      { type: 'text', text: 'Component or Docs Entry not found: "nope".' },
+    ]);
+  });
+
+  it('renders one text block per markdown entry', async () => {
+    registerStubStoriesToolset({
+      handler: async () => ({
+        ok: true,
+        data: { stories: [] },
+        markdown: ['http://localhost:6006/one', 'http://localhost:6006/two'],
+      }),
+    });
+
+    const result = await callToolsetMethod(makeServer(), previewOptions, { id: 'x' });
+
+    expect(result.content).toEqual([
+      { type: 'text', text: 'http://localhost:6006/one' },
+      { type: 'text', text: 'http://localhost:6006/two' },
+    ]);
   });
 
   it('omits structuredContent when the method publishes no output schema', async () => {
@@ -94,8 +130,7 @@ describe('toolset-backed MCP tools', () => {
           changed: {
             schema: v.object({}),
             description: 'changed',
-            handler: async () => ({ stories: [] }),
-            format: () => 'no changes',
+            handler: async () => ({ ok: true, data: { stories: [] }, markdown: 'no changes' }),
           },
         },
       }) as any
@@ -112,7 +147,11 @@ describe('toolset-backed MCP tools', () => {
   });
 
   it('runs the handler once, so a method with side effects cannot double-publish', async () => {
-    const handler = vi.fn(async () => ({ stories: [{ previewUrl: 'http://localhost:6006/' }] }));
+    const handler = vi.fn(async () => ({
+      ok: true,
+      data: { stories: [{ previewUrl: 'http://localhost:6006/' }] },
+      markdown: 'http://localhost:6006/',
+    }));
     registerStubStoriesToolset({ handler });
 
     await callToolsetMethod(makeServer(), previewOptions, { id: 'button--primary' });

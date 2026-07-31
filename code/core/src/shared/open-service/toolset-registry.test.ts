@@ -22,8 +22,7 @@ const makeToolset = (id: string, description = `${id} toolset`) =>
       noop: {
         description: 'No-op method.',
         schema: v.object({}),
-        handler: () => undefined,
-        format: () => '',
+        handler: () => ({ ok: true, data: undefined, markdown: '' }) as const,
       },
     },
   });

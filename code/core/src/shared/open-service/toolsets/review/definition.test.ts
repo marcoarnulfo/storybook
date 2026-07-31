@@ -56,7 +56,10 @@ beforeEach(() => {
 
 describe('review.create', () => {
   it('publishes the review and returns its page URL plus what it contains', async () => {
-    await expect(createReview()).resolves.toEqual({
+    const outcome = await createReview();
+
+    expect(outcome.ok).toBe(true);
+    expect(outcome.data).toEqual({
       reviewUrl,
       collectionCount: 1,
       storyCount: 1,
@@ -66,20 +69,20 @@ describe('review.create', () => {
   });
 
   it('counts stories across every collection', async () => {
-    await expect(
-      createReview({
-        collections: [
-          { title: 'Primary', rationale: 'edited', storyIds: ['button--primary', 'button--large'] },
-          { title: 'Pages', rationale: 'context', storyIds: ['page--default'] },
-        ],
-      })
-    ).resolves.toMatchObject({ collectionCount: 2, storyCount: 3 });
+    const outcome = await createReview({
+      collections: [
+        { title: 'Primary', rationale: 'edited', storyIds: ['button--primary', 'button--large'] },
+        { title: 'Pages', rationale: 'context', storyIds: ['page--default'] },
+      ],
+    });
+
+    expect(outcome.data).toMatchObject({ collectionCount: 2, storyCount: 3 });
   });
 
   it('builds one review URL whether or not the origin ends in a slash', async () => {
-    await expect(
-      createReview({}, { ...cliCtx, origin: 'http://localhost:6006/' })
-    ).resolves.toMatchObject({ reviewUrl });
+    const outcome = await createReview({}, { ...cliCtx, origin: 'http://localhost:6006/' });
+
+    expect(outcome.data).toMatchObject({ reviewUrl });
   });
 
   it('rejects when the adapter has no Storybook origin to link to', async () => {
@@ -136,30 +139,30 @@ This usually means the IDs were inferred from file paths or naming conventions r
 
   describe('rendering', () => {
     it('summarizes the review in one line for the CLI', async () => {
-      const data = await createReview();
+      const outcome = await createReview();
 
-      expect(reviewToolset.methods.create.format(data, cliCtx)).toBe(
+      expect(outcome.markdown).toBe(
         `Review applied: 1 collection, 1 story. Open ${reviewUrl} to view it.`
       );
     });
 
     it('pluralizes the CLI summary', async () => {
-      const data = await createReview({
+      const outcome = await createReview({
         collections: [
           { title: 'Primary', rationale: 'edited', storyIds: ['button--primary'] },
           { title: 'Pages', rationale: 'context', storyIds: ['page--default'] },
         ],
       });
 
-      expect(reviewToolset.methods.create.format(data, cliCtx)).toBe(
+      expect(outcome.markdown).toBe(
         `Review applied: 2 collections, 2 stories. Open ${reviewUrl} to view it.`
       );
     });
 
     it('tells MCP to open the page itself and to surface the link to the user', async () => {
-      const data = await createReview({}, mcpCtx);
+      const outcome = await createReview({}, mcpCtx);
 
-      expect(reviewToolset.methods.create.format(data, mcpCtx))
+      expect(outcome.markdown)
         .toBe(`Review applied: 1 collection, 1 story. Storybook is already running at http://localhost:6006 — reuse it. Do NOT start another Storybook or change its port to view this review; the running instance already serves it.
 
 Two things you must do now, both of them:

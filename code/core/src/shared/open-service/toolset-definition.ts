@@ -41,41 +41,55 @@ export type ToolsetCtx = {
 export type ToolsetMethodDescription = string | ((context: ToolsetCtx) => string);
 
 /**
- * One public method.
+ * The result of one method run: the tag, the structured data, and the rendered Markdown, all from a
+ * single execution.
  *
- * `handler` produces data and owns side effects and telemetry; `format` renders that data as the
- * text a consumer shows. They are separate because one MCP response carries both at once —
- * `content` (text) and `structuredContent` (JSON) — and a single method run must produce both.
+ * The failure model in one line each: could not do the job → throw; did the job and the answer is
+ * bad news → return `{ ok: false, data, markdown }`. Adapters unwrap mechanically — text blocks
+ * from `markdown`, `structuredContent` from `data`, MCP `isError` (and later CLI exit codes) from
+ * `ok` — so everything a method means lives on its definition, never re-derived outside it.
  *
- * `format` may return multiple strings: MCP renders each as its own text block, the CLI joins them
- * with newlines.
+ * Declare `TFailure = never` for infallible methods; the signature then documents fallibility and
+ * TypeScript narrows both branches. Return plain object literals: contextual typing against this
+ * union does the narrowing, no factory helpers needed.
  *
- * `reportUsage` is for the telemetry a handler cannot send because it describes the rendered text —
- * how large the answer was. It runs once per call, after `format`, on every consumer, so the same
- * event is reported whether the caller came through MCP or the CLI. Telemetry that does not need
- * the text belongs in `handler` instead.
+ * `markdown` may be multiple strings: MCP renders each as its own text block (preview-stories
+ * renders one block per URL), the CLI joins them with newlines.
  */
-export type ToolsetMethod<TSchema extends AnySchema = AnySchema, TOutput = unknown> = {
+export type ToolsetOutcome<TSuccess, TFailure = TSuccess> =
+  | { readonly ok: true; readonly data: TSuccess; readonly markdown: string | string[] }
+  | { readonly ok: false; readonly data: TFailure; readonly markdown: string | string[] };
+
+// `any` permits heterogeneous outcome maps. Each individual method remains typed by `defineToolset`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyToolsetOutcome = ToolsetOutcome<any, any>;
+
+/**
+ * One public method: description, input schema, optional output schema, and one handler.
+ *
+ * The handler produces the whole {@link ToolsetOutcome} — data, side effects, telemetry, and the
+ * rendered Markdown — because one MCP response carries `content` (text) and `structuredContent`
+ * (JSON) at once, and both must come from a single run: re-running a method with side effects
+ * would repeat them. Usage telemetry reports inline in the handler, with the rendered text in
+ * hand, so no consumer can forget it.
+ */
+export type ToolsetMethod<
+  TSchema extends AnySchema = AnySchema,
+  TOutcome extends AnyToolsetOutcome = AnyToolsetOutcome,
+> = {
   description: ToolsetMethodDescription;
   schema: TSchema;
   /** Published as the MCP tool's `outputSchema`. Declare it only where the JSON is contractual. */
   outputSchema?: AnySchema;
-  handler: (input: StandardSchemaV1.InferOutput<TSchema>, context: ToolsetCtx) => TOutput;
-  format: (data: Awaited<TOutput>, context: ToolsetCtx) => string | string[];
-  reportUsage?: (
-    result: {
-      input: StandardSchemaV1.InferOutput<TSchema>;
-      data: Awaited<TOutput>;
-      /** Everything `format` returned, joined — what the consumer actually shows. */
-      text: string;
-    },
+  handler: (
+    input: StandardSchemaV1.InferOutput<TSchema>,
     context: ToolsetCtx
-  ) => void | Promise<void>;
+  ) => TOutcome | Promise<TOutcome>;
 };
 
 // `any` permits a heterogeneous method map. Each individual method remains typed by `defineToolset`.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ToolsetMethods = Record<string, ToolsetMethod<any, any>>;
+type ToolsetMethods = Record<string, ToolsetMethod<any, AnyToolsetOutcome>>;
 
 export type ToolsetDefinition<
   TId extends string = string,
@@ -90,9 +104,8 @@ export type AnyToolsetDefinition = ToolsetDefinition;
 
 /**
  * Second contextual-typing pass for the methods literal: `handler` input comes from that method's
- * own `schema`, and `format` data from that method's own `handler` return. Intersecting this with
- * the inferred map is what makes the flow work on both the stable and the native TypeScript
- * compiler — inferring a separate outputs record does not.
+ * own `schema`. Intersecting this with the inferred map is what makes the flow work on both the
+ * stable and the native TypeScript compiler — inferring a separate record does not.
  */
 type MethodContracts<TMethods extends ToolsetMethods> = {
   [TKey in keyof TMethods]: {
@@ -100,10 +113,6 @@ type MethodContracts<TMethods extends ToolsetMethods> = {
       input: StandardSchemaV1.InferOutput<TMethods[TKey]['schema']>,
       context: ToolsetCtx
     ) => unknown;
-    format: (
-      data: Awaited<ReturnType<TMethods[TKey]['handler']>>,
-      context: ToolsetCtx
-    ) => string | string[];
   };
 };
 

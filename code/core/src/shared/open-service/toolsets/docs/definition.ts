@@ -1,6 +1,6 @@
 import * as v from 'valibot';
 
-import { defineToolset, type ToolsetCtx } from '../../toolset-definition.ts';
+import { defineToolset, type ToolsetCtx, type ToolsetOutcome } from '../../toolset-definition.ts';
 import { getRef } from '../../toolset-names.ts';
 import type { DocsAccess, ResolvedDocsEntry } from './access.ts';
 import {
@@ -73,7 +73,12 @@ export function selectReportedManifests({
   return manifests ?? sources?.find((listing) => listing.manifests)?.manifests;
 }
 
-/** Whether `docs.show` failed: an unusable source, or an id that resolved to nothing. */
+/**
+ * Whether `docs.show` failed: an unusable source, or an id that resolved to nothing.
+ *
+ * The handlers encode this in the outcome tag; the predicate stays exported because it is part of
+ * the frozen `@storybook/mcp` API.
+ */
 export function isDocsShowError({ entry, sourceError }: DocsShowOutput): boolean {
   return sourceError !== undefined || entry === undefined;
 }
@@ -179,6 +184,42 @@ export function createDocsToolset(options: CreateDocsToolsetOptions) {
   const access = (storybookId: string | undefined, ctx: ToolsetCtx) =>
     multiSource ? selectSource(sources, storybookId, ctx) : { access: docsAccess };
 
+  /** Pure renderer for `show`; the handler attaches it to both outcome branches. */
+  const renderShow = ({ id, entry, storybookId, sourceError }: DocsShowOutput, ctx: ToolsetCtx) => {
+    if (sourceError) {
+      return sourceError;
+    }
+    if (!entry) {
+      return formatEntryNotFound(id, storybookId, ctx);
+    }
+    return entry.kind === 'doc'
+      ? formatDocsManifest(entry.doc)
+      : formatComponentManifest(entry.component);
+  };
+
+  /** Pure renderer for `showStory`. */
+  const renderShowStory = (
+    { componentId, storyName, entry, sourceError }: DocsShowStoryOutput,
+    ctx: ToolsetCtx
+  ) => {
+    if (sourceError) {
+      return sourceError;
+    }
+    if (!entry || entry.kind !== 'component') {
+      return ctx.consumer === 'mcp'
+        ? `Component not found: "${componentId}". Use the ${getRef(ctx)('docs.list')} tool to see available components.`
+        : `Component not found: "${componentId}".`;
+    }
+
+    const story = entry.component.stories?.find((candidate) => candidate.name === storyName);
+    if (!story) {
+      const availableStories = entry.component.stories?.map((s) => s.name).join(', ');
+      return `Story "${storyName}" not found for component "${componentId}". Available stories: ${availableStories || 'none'}`;
+    }
+
+    return formatStoryDocumentation(entry.component, storyName);
+  };
+
   return defineToolset({
     id: 'docs',
     description: 'Storybook component and docs documentation.',
@@ -196,102 +237,78 @@ export function createDocsToolset(options: CreateDocsToolsetOptions) {
           ),
         }),
         description: describeList,
-        handler: async (input): Promise<DocsListOutput> => {
+        handler: async (input, ctx): Promise<ToolsetOutcome<DocsListOutput, never>> => {
           const { withStoryIds } = input;
-          if (multiSource) {
-            return { withStoryIds, sources: await listSources(sources!, { withStoryIds }) };
-          }
-          return { withStoryIds, manifests: await docsAccess!.list({ withStoryIds }) };
-        },
-        format: ({ manifests, sources: listings, withStoryIds }: DocsListOutput) =>
-          listings
-            ? formatMultiSourceManifestsToLists(listings, { withStoryIds })
-            : formatManifestsToLists(manifests!, { withStoryIds }),
-        reportUsage: async ({ data, text }, ctx) => {
-          const listing = data as DocsListOutput;
-          const counted = selectReportedManifests(listing);
-          if (!counted) {
-            return;
+          const data: DocsListOutput = multiSource
+            ? { withStoryIds, sources: await listSources(sources!, { withStoryIds }) }
+            : { withStoryIds, manifests: await docsAccess!.list({ withStoryIds }) };
+
+          const markdown = data.sources
+            ? formatMultiSourceManifestsToLists(data.sources, { withStoryIds })
+            : formatManifestsToLists(data.manifests!, { withStoryIds });
+
+          // A listing of nothing but errors is not a usage signal, so nothing is counted then.
+          const counted = selectReportedManifests(data);
+          if (counted) {
+            await ctx.telemetry?.('tool:listAllDocumentation', {
+              componentCount: Object.keys(counted.componentManifest.components).length,
+              docsCount: Object.keys(counted.docsManifest?.docs ?? {}).length,
+              resultTokenCount: estimateTokens(markdown),
+              sourceCount: data.sources?.length,
+            });
           }
 
-          await ctx.telemetry?.('tool:listAllDocumentation', {
-            componentCount: Object.keys(counted.componentManifest.components).length,
-            docsCount: Object.keys(counted.docsManifest?.docs ?? {}).length,
-            resultTokenCount: estimateTokens(text),
-            sourceCount: listing.sources?.length,
-          });
+          return { ok: true, data, markdown };
         },
       },
       show: {
         schema: showSchema,
         description: describeShow,
-        handler: async (input, ctx): Promise<DocsShowOutput> => {
+        handler: async (input, ctx): Promise<ToolsetOutcome<DocsShowOutput>> => {
           const { id, storybookId } = input as { id: string; storybookId?: string };
           const selected = access(storybookId, ctx);
-          if (selected.sourceError) {
-            return { id, storybookId, sourceError: selected.sourceError };
-          }
+          const data: DocsShowOutput = selected.sourceError
+            ? { id, storybookId, sourceError: selected.sourceError }
+            : { id, storybookId, entry: await selected.access!.resolve(id) };
 
-          return { id, storybookId, entry: await selected.access!.resolve(id) };
-        },
-        format: ({ id, entry, storybookId, sourceError }: DocsShowOutput, ctx) => {
-          if (sourceError) {
-            return sourceError;
-          }
-          if (!entry) {
-            return formatEntryNotFound(id, storybookId, ctx);
-          }
-          return entry.kind === 'doc'
-            ? formatDocsManifest(entry.doc)
-            : formatComponentManifest(entry.component);
-        },
-        reportUsage: async ({ input, data, text }, ctx) => {
+          const markdown = renderShow(data, ctx);
+
           await ctx.telemetry?.('tool:getDocumentation', {
-            componentId: (input as { id: string }).id,
+            componentId: id,
             found: data.entry !== undefined,
-            resultTokenCount: estimateTokens(text),
+            resultTokenCount: estimateTokens(markdown),
           });
+
+          return isDocsShowError(data)
+            ? { ok: false, data, markdown }
+            : { ok: true, data, markdown };
         },
       },
       showStory: {
         schema: showStorySchema,
         description:
           'Get detailed documentation for a specific story variant of a UI component. Use this when you need to see more usage examples of a component, via the stories written for it.',
-        handler: async (input, ctx): Promise<DocsShowStoryOutput> => {
+        handler: async (input, ctx): Promise<ToolsetOutcome<DocsShowStoryOutput>> => {
           const { componentId, storyName, storybookId } = input as {
             componentId: string;
             storyName: string;
             storybookId?: string;
           };
           const selected = access(storybookId, ctx);
-          if (selected.sourceError) {
-            return { componentId, storyName, storybookId, sourceError: selected.sourceError };
-          }
+          const data: DocsShowStoryOutput = selected.sourceError
+            ? { componentId, storyName, storybookId, sourceError: selected.sourceError }
+            : {
+                componentId,
+                storyName,
+                storybookId,
+                entry: await selected.access!.resolve(componentId),
+              };
 
-          return {
-            componentId,
-            storyName,
-            storybookId,
-            entry: await selected.access!.resolve(componentId),
-          };
-        },
-        format: ({ componentId, storyName, entry, sourceError }: DocsShowStoryOutput, ctx) => {
-          if (sourceError) {
-            return sourceError;
-          }
-          if (!entry || entry.kind !== 'component') {
-            return ctx.consumer === 'mcp'
-              ? `Component not found: "${componentId}". Use the ${getRef(ctx)('docs.list')} tool to see available components.`
-              : `Component not found: "${componentId}".`;
-          }
+          const markdown = renderShowStory(data, ctx);
 
-          const story = entry.component.stories?.find((candidate) => candidate.name === storyName);
-          if (!story) {
-            const availableStories = entry.component.stories?.map((s) => s.name).join(', ');
-            return `Story "${storyName}" not found for component "${componentId}". Available stories: ${availableStories || 'none'}`;
-          }
-
-          return formatStoryDocumentation(entry.component, storyName);
+          return isDocsShowStoryError(data)
+            ? { ok: false, data, markdown }
+            : { ok: true, data, markdown };
         },
       },
     },

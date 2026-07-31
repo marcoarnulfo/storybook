@@ -146,14 +146,20 @@ afterAll(() => {
 
 describe('stories.preview', () => {
   it('resolves story ids against the live index', async () => {
-    await expect(runPreview([{ storyId: 'button--primary' }])).resolves.toEqual({
+    const outcome = await runPreview([{ storyId: 'button--primary' }]);
+
+    expect(outcome.ok).toBe(true);
+    expect(outcome.data).toEqual({
       stories: [{ title: 'Button', name: 'Primary', previewUrl }],
     });
     expect(getIndex).toHaveBeenCalledOnce();
   });
 
   it('reports per-input lookup failures instead of failing the call', async () => {
-    await expect(runPreview([{ storyId: 'gone--story' }])).resolves.toEqual({
+    const outcome = await runPreview([{ storyId: 'gone--story' }]);
+
+    expect(outcome.ok).toBe(true);
+    expect(outcome.data).toEqual({
       stories: [
         {
           input: { storyId: 'gone--story' },
@@ -180,24 +186,24 @@ describe('stories.preview', () => {
 
   describe('rendering', () => {
     it('lists titled entries for the CLI', async () => {
-      const data = await runPreview([{ storyId: 'button--primary' }]);
+      const outcome = await runPreview([{ storyId: 'button--primary' }]);
 
-      expect(toolset.methods.preview.format(data, cliCtx)).toBe(
+      expect(outcome.markdown).toBe(
         ['# Story previews', '- Button - Primary', `  ${previewUrl}`].join('\n')
       );
     });
 
     it('returns one text block per URL for MCP', async () => {
-      const data = await runPreview([{ storyId: 'button--primary' }]);
+      const outcome = await runPreview([{ storyId: 'button--primary' }], mcpCtx);
 
-      expect(toolset.methods.preview.format(data, mcpCtx)).toEqual([previewUrl]);
+      expect(outcome.markdown).toEqual([previewUrl]);
     });
 
     it('appends a review nudge for MCP once a URL resolved and reviews exist', async () => {
       const withReviews = createToolset({ reviewEnabled: true });
-      const data = await runPreview([{ storyId: 'button--primary' }], mcpCtx, withReviews);
+      const outcome = await runPreview([{ storyId: 'button--primary' }], mcpCtx, withReviews);
 
-      expect(withReviews.methods.preview.format(data, mcpCtx)).toEqual([
+      expect(outcome.markdown).toEqual([
         previewUrl,
         'These preview links are for iterating or sharing a specific story — they are not how visual work or a browse request ends. The display-review tool is available in this session: if you are finishing visually observable work or showing a set of stories, publish the review with **display-review** and link that instead.',
       ]);
@@ -205,11 +211,9 @@ describe('stories.preview', () => {
 
     it('leaves an all-error result unnudged, since there is nothing to curate', async () => {
       const withReviews = createToolset({ reviewEnabled: true });
-      const data = await runPreview([{ storyId: 'gone--story' }], mcpCtx, withReviews);
+      const outcome = await runPreview([{ storyId: 'gone--story' }], mcpCtx, withReviews);
 
-      expect(withReviews.methods.preview.format(data, mcpCtx)).toEqual([
-        'No story found for story ID "gone--story"',
-      ]);
+      expect(outcome.markdown).toEqual(['No story found for story ID "gone--story"']);
     });
   });
 });
@@ -218,7 +222,10 @@ describe('stories.changed', () => {
   it('enriches change-detection statuses and lists unreachable working-tree files', async () => {
     markChanged('button--primary', 'status-value:modified');
 
-    await expect(runChanged()).resolves.toEqual({
+    const outcome = await runChanged();
+
+    expect(outcome.ok).toBe(true);
+    expect(outcome.data).toEqual({
       stories: [
         {
           storyId: 'button--primary',
@@ -239,13 +246,11 @@ describe('stories.changed', () => {
     getChangedFiles.mockRejectedValue(new Error('not a git repository'));
     getRepoRoot.mockRejectedValue(new Error('not a git repository'));
 
-    const data = await runChanged(mcpCtx);
+    const outcome = await runChanged(mcpCtx);
 
-    expect(data.stories).toEqual([]);
-    expect(data.unreachableFiles).toEqual([]);
-    expect(toolset.methods.changed.format(data, mcpCtx)).toBe(
-      'No new, modified, or related stories detected.'
-    );
+    expect(outcome.data.stories).toEqual([]);
+    expect(outcome.data.unreachableFiles).toEqual([]);
+    expect(outcome.markdown).toBe('No new, modified, or related stories detected.');
   });
 
   it('anchors Git-relative paths at the repository root, not the Storybook working directory', async () => {
@@ -270,9 +275,9 @@ describe('stories.changed', () => {
   describe('rendering', () => {
     it('summarizes counts and unreachable files for the CLI', async () => {
       markChanged('button--primary', 'status-value:new');
-      const data = await runChanged();
+      const outcome = await runChanged();
 
-      expect(toolset.methods.changed.format(data, cliCtx)).toBe(
+      expect(outcome.markdown).toBe(
         [
           '# Changed stories',
           'New: 1, modified: 0, affected: 0',
@@ -287,9 +292,9 @@ describe('stories.changed', () => {
     it('buckets stories by status for MCP', async () => {
       markChanged('button--primary', 'status-value:new');
       markReachable(themePath);
-      const data = await runChanged();
+      const outcome = await runChanged(mcpCtx);
 
-      expect(toolset.methods.changed.format(data, mcpCtx)).toBe(
+      expect(outcome.markdown).toBe(
         `Detected 1 changed story (1 new, 0 modified, 0 related).
 
 New stories:
@@ -301,9 +306,9 @@ New stories:
       markChanged('button--primary', 'status-value:new');
       markReachable(themePath);
       const withReviews = createToolset({ reviewEnabled: true });
-      const data = await runChanged(mcpCtx, withReviews);
+      const outcome = await runChanged(mcpCtx, withReviews);
 
-      expect(withReviews.methods.changed.format(data, mcpCtx)).toBe(
+      expect(outcome.markdown).toBe(
         `Detected 1 changed story (1 new, 0 modified, 0 related).
 
 Next: if the change is visually observable, publish the review now — call **display-review** curating these story IDs. That review link is how you finish; do not substitute individual preview URLs for it.
@@ -315,9 +320,9 @@ New stories:
 
     it('brackets a non-empty MCP result with a coverage banner and a sanity-check note', async () => {
       markChanged('button--primary', 'status-value:new');
-      const data = await runChanged();
+      const outcome = await runChanged(mcpCtx);
 
-      expect(toolset.methods.changed.format(data, mcpCtx)).toBe(
+      expect(outcome.markdown).toBe(
         `⚠ Coverage gap: 1 modified file unreachable from any story (${changedThemeFile}) — full sanity-check note at end of this response.
 
 Detected 1 changed story (1 new, 0 modified, 0 related).
@@ -333,9 +338,9 @@ The list above is real but may be stale w.r.t. these files — they're often lef
     });
 
     it('tells MCP how to recover when nothing changed but files are unreachable', async () => {
-      const data = await runChanged();
+      const outcome = await runChanged(mcpCtx);
 
-      expect(toolset.methods.changed.format(data, mcpCtx)).toBe(
+      expect(outcome.markdown).toBe(
         `No new, modified, or related stories detected.
 
 The following working-tree file(s) are modified but unreachable from any story (no static import path connects them — they are likely theme tokens, decorators, or other Storybook-preview-runtime files):
@@ -349,7 +354,10 @@ For these, grep the codebase for their exports (e.g. specific tokens or symbols)
 
 describe('stories.findByComponent', () => {
   it('returns index-backed matches together with the ceiling that was applied', async () => {
-    await expect(runFindByComponent({ componentPaths: [componentPath] })).resolves.toEqual({
+    const outcome = await runFindByComponent({ componentPaths: [componentPath] });
+
+    expect(outcome.ok).toBe(true);
+    expect(outcome.data).toEqual({
       maxDistance: 3,
       results: [
         {
@@ -371,9 +379,9 @@ describe('stories.findByComponent', () => {
   });
 
   it('echoes a caller-supplied ceiling', async () => {
-    await expect(
-      runFindByComponent({ componentPaths: [componentPath], maxDistance: 1 })
-    ).resolves.toMatchObject({ maxDistance: 1 });
+    const outcome = await runFindByComponent({ componentPaths: [componentPath], maxDistance: 1 });
+
+    expect(outcome.data).toMatchObject({ maxDistance: 1 });
   });
 
   it('rejects with the graph reason rather than answering "no stories"', async () => {
@@ -407,9 +415,9 @@ describe('stories.findByComponent', () => {
 
   describe('rendering', () => {
     it('renders a headed section per component for the CLI', async () => {
-      const data = await runFindByComponent({ componentPaths: [componentPath] });
+      const outcome = await runFindByComponent({ componentPaths: [componentPath] });
 
-      expect(toolset.methods.findByComponent.format(data, cliCtx)).toBe(
+      expect(outcome.markdown).toBe(
         `# Stories by component
 ## ${componentPath}
 ${componentPath}:
@@ -420,9 +428,9 @@ distance 1:
     });
 
     it('renders distance buckets without headings for MCP', async () => {
-      const data = await runFindByComponent({ componentPaths: [componentPath] });
+      const outcome = await runFindByComponent({ componentPaths: [componentPath] }, mcpCtx);
 
-      expect(toolset.methods.findByComponent.format(data, mcpCtx)).toBe(
+      expect(outcome.markdown).toBe(
         `${componentPath}:
 → 1 story across 1 component, distances 1..1 (d1=1)
 distance 1:
@@ -431,9 +439,9 @@ distance 1:
     });
 
     it('tells MCP to re-check a path that does not exist on disk', async () => {
-      const data = await runFindByComponent({ componentPaths: [themePath] });
+      const outcome = await runFindByComponent({ componentPaths: [themePath] }, mcpCtx);
 
-      expect(toolset.methods.findByComponent.format(data, mcpCtx)).toBe(
+      expect(outcome.markdown).toBe(
         `${themePath}: path does not exist on disk — re-check the path you sent.`
       );
     });

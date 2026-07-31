@@ -11,12 +11,14 @@ export { seedQueryState } from './query-state.ts';
 export { defineToolset, resolveToolsetDescription } from './toolset-definition.ts';
 export type {
   AnyToolsetDefinition,
+  AnyToolsetOutcome,
   ToolsetConsumer,
   ToolsetCtx,
   ToolsetDefinition,
   ToolsetGetService,
   ToolsetMethod,
   ToolsetMethodDescription,
+  ToolsetOutcome,
   ToolsetTelemetry,
 } from './toolset-definition.ts';
 export { getRef, MCP_TOOL_NAMES, MCP_TOOL_TITLES } from './toolset-names.ts';

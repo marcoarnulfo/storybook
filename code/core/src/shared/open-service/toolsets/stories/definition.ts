@@ -7,7 +7,7 @@ import {
   OpenServiceModuleGraphUnavailableError,
 } from '../../../../server-errors.ts';
 import type { ModuleGraphService } from '../../services/module-graph/definition.ts';
-import { defineToolset, type ToolsetCtx } from '../../toolset-definition.ts';
+import { defineToolset, type ToolsetCtx, type ToolsetOutcome } from '../../toolset-definition.ts';
 import { getRef, MCP_TOOL_NAMES } from '../../toolset-names.ts';
 import type { StatusesByStoryIdAndTypeId } from '../../../status-store/index.ts';
 import { getChangedStories } from './changed.ts';
@@ -214,7 +214,7 @@ Use { absoluteStoryPath + exportName } only when you're already working in a spe
         }),
         outputSchema: previewOutputSchema,
         description: (ctx) => describePreview(ctx, reviewEnabled),
-        handler: async (input, ctx): Promise<PreviewStoriesOutput> => {
+        handler: async (input, ctx): Promise<ToolsetOutcome<PreviewStoriesOutput, never>> => {
           if (!ctx.origin) {
             throw new OpenServiceMissingOriginError({
               toolsetId: 'stories',
@@ -232,14 +232,13 @@ Use { absoluteStoryPath + exportName } only when you're already working in a spe
             outputStoryCount: data.stories.length,
           });
 
-          return data;
+          return { ok: true, data, markdown: formatPreviewStories(data, ctx, { reviewEnabled }) };
         },
-        format: (data, ctx) => formatPreviewStories(data, ctx, { reviewEnabled }),
       },
       changed: {
         schema: v.object({}),
         description: describeChanged,
-        handler: async (_input, ctx): Promise<ChangedStoriesOutput> => {
+        handler: async (_input, ctx): Promise<ToolsetOutcome<ChangedStoriesOutput, never>> => {
           const moduleGraph = ctx.getService<ModuleGraphService>('core/module-graph', {
             internal: true,
           });
@@ -262,9 +261,8 @@ Use { absoluteStoryPath + exportName } only when you're already working in a spe
             affectedStoryCount: data.counts.affected,
           });
 
-          return data;
+          return { ok: true, data, markdown: formatChangedStories(data, ctx, { reviewEnabled }) };
         },
-        format: (data, ctx) => formatChangedStories(data, ctx, { reviewEnabled }),
       },
       findByComponent: {
         schema: v.object({
@@ -290,7 +288,7 @@ Defaults to ${DEFAULT_MAX_DISTANCE}; raise it to widen recall, lower it to tight
         }),
         outputSchema: findByComponentOutputSchema,
         description: (ctx) => describeFindByComponent(ctx, reviewEnabled),
-        handler: async (input, ctx): Promise<FindByComponentOutput> => {
+        handler: async (input, ctx): Promise<ToolsetOutcome<FindByComponentOutput, never>> => {
           const moduleGraph = ctx.getService<ModuleGraphService>('core/module-graph', {
             internal: true,
           });
@@ -332,9 +330,9 @@ Defaults to ${DEFAULT_MAX_DISTANCE}; raise it to widen recall, lower it to tight
             maxDistance,
           });
 
-          return { results: lookup.results, maxDistance };
+          const data: FindByComponentOutput = { results: lookup.results, maxDistance };
+          return { ok: true, data, markdown: formatFindByComponent(data, ctx) };
         },
-        format: (data, ctx) => formatFindByComponent(data, ctx),
       },
     },
   });

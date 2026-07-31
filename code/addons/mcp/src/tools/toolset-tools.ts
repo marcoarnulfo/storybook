@@ -17,6 +17,7 @@ import {
   MCP_TOOL_TITLES,
   getToolset,
   resolveToolsetDescription,
+  type AnyToolsetOutcome,
   type ToolsetCtx,
   type ToolsetMethod,
   type ToolsetMethodRef,
@@ -49,21 +50,19 @@ export type ToolsetToolOptions = {
    */
   resolveOrigin?: (server: Server) => string | undefined;
   /**
-   * Marks the result as an MCP error from the returned data. Some contracts (the docs tools'
-   * not-found responses) report failure without throwing, so the flag cannot come from a catch.
-   */
-  resultIsError?: (data: unknown) => boolean;
-  /**
    * Supplies the method instead of the registry.
    *
    * A composition's docs tools read state that belongs to the request being served (its manifest
    * provider and composed sources), so their toolset is built per call rather than registered once
    * at boot. Called without a server when only static metadata is needed.
    */
-  resolveMethod?: (server?: Server) => ToolsetMethod<any, any>;
+  resolveMethod?: (server?: Server) => ToolsetMethod<any, AnyToolsetOutcome>;
 };
 
-function resolveMethod(options: ToolsetToolOptions, server?: Server): ToolsetMethod<any, any> {
+function resolveMethod(
+  options: ToolsetToolOptions,
+  server?: Server
+): ToolsetMethod<any, AnyToolsetOutcome> {
   if (options.resolveMethod) {
     return options.resolveMethod(server);
   }
@@ -72,10 +71,10 @@ function resolveMethod(options: ToolsetToolOptions, server?: Server): ToolsetMet
 }
 
 /**
- * Narrows handler output to the published output contract.
+ * Narrows outcome data to the published output contract.
  *
- * Handlers may return more than the contract declares so `format` has what it needs; only the
- * declared shape reaches `structuredContent`.
+ * Outcomes may carry more data than the contract declares (the rendered Markdown needs it); only
+ * the declared shape reaches `structuredContent`.
  */
 async function toStructuredContent(
   outputSchema: StandardSchemaV1 | undefined,
@@ -110,7 +109,7 @@ function buildContext(server: Server, options: ToolsetToolOptions): ToolsetCtx {
   };
 }
 
-/** Runs one toolset method and shapes it into an MCP tool result. */
+/** Runs one toolset method and unwraps its outcome into an MCP tool result. */
 export async function callToolsetMethod(
   server: Server,
   options: ToolsetToolOptions,
@@ -120,22 +119,14 @@ export async function callToolsetMethod(
   const ctx = buildContext(server, options);
 
   try {
-    const data = await method.handler(input as never, ctx);
-    const structuredContent = await toStructuredContent(method.outputSchema, data);
-    const formatted = method.format(data as never, ctx);
-    const blocks = Array.isArray(formatted) ? formatted : [formatted];
-
-    // Reports through the same `ctx.telemetry` the handler uses, so the event is identical
-    // whichever consumer ran the method.
-    await method.reportUsage?.(
-      { input: input as never, data: data as never, text: blocks.join('\n') },
-      ctx
-    );
+    const outcome = await method.handler(input as never, ctx);
+    const structuredContent = await toStructuredContent(method.outputSchema, outcome.data);
+    const blocks = Array.isArray(outcome.markdown) ? outcome.markdown : [outcome.markdown];
 
     return {
       content: blocks.map((text) => ({ type: 'text' as const, text })),
       ...(structuredContent ? { structuredContent } : {}),
-      ...(options.resultIsError?.(data) ? { isError: true } : {}),
+      ...(outcome.ok ? {} : { isError: true }),
     };
   } catch (error) {
     // This one is written for the agent that triggered the lookup and names its own recovery, so

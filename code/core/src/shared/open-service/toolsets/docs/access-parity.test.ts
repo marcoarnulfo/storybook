@@ -145,11 +145,11 @@ function manifestToolset() {
 }
 
 async function renderList(toolset: ReturnType<typeof createDocsToolset>, withStoryIds: boolean) {
-  return toolset.methods.list.format(await toolset.methods.list.handler({ withStoryIds }));
+  return (await toolset.methods.list.handler({ withStoryIds }, ctx)).markdown;
 }
 
 async function renderShow(toolset: ReturnType<typeof createDocsToolset>, id: string) {
-  return toolset.methods.show.format(await toolset.methods.show.handler({ id }, ctx), ctx);
+  return (await toolset.methods.show.handler({ id }, ctx)).markdown;
 }
 
 describe('docs tools render the same text in both docgen modes', () => {
@@ -165,13 +165,12 @@ describe('docs tools render the same text in both docgen modes', () => {
 
   it('showStory', async () => {
     const render = async (toolset: ReturnType<typeof createDocsToolset>) =>
-      toolset.methods.showStory.format(
+      (
         await toolset.methods.showStory.handler(
           { componentId: 'button', storyName: 'Primary' },
           ctx
-        ),
-        ctx
-      );
+        )
+      ).markdown;
 
     expect(await render(serviceToolset())).toBe(await render(manifestToolset()));
   });

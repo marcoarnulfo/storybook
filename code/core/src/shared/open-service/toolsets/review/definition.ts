@@ -5,7 +5,7 @@ import {
   describeUnknownStoryIds,
   OpenServiceUnknownStoryIdsError,
 } from '../../../../server-errors.ts';
-import { defineToolset, type ToolsetCtx } from '../../toolset-definition.ts';
+import { defineToolset, type ToolsetCtx, type ToolsetOutcome } from '../../toolset-definition.ts';
 import { getRef } from '../../toolset-names.ts';
 import type { ReviewService } from '../../services/review/definition.ts';
 
@@ -113,6 +113,27 @@ function formatUnknownStoryIdsError(unknownIds: string[], ctx: ToolsetCtx): stri
   return `${describeUnknownStoryIds(unknownIds)}\n${list}\n\nThis usually means the IDs were inferred from file paths or naming conventions rather than returned by a tool. Resolve real IDs by calling \`${ref('stories.findByComponent')}\` (for components you've edited or want covered) or \`${ref('docs.list')}\` (to browse the index), then retry \`${ref('review.create')}\` with the verified IDs. Do not invent IDs to satisfy this check.`;
 }
 
+/** Pure renderer for a published review, per consumer. */
+function formatReviewApplied(
+  { reviewUrl, collectionCount, storyCount }: ReviewCreateOutput,
+  ctx: ToolsetCtx
+): string {
+  const storyNoun = storyCount === 1 ? 'y' : 'ies';
+  const summary = `Review applied: ${collectionCount} collection${collectionCount === 1 ? '' : 's'}, ${storyCount} stor${storyNoun}.`;
+
+  if (ctx.consumer !== 'mcp') {
+    return `${summary} Open ${reviewUrl} to view it.`;
+  }
+
+  // Agents were observed ending visual work at the tool result, so the result itself has to
+  // carry both follow-ups: open the page, and surface the link in the final response.
+  return `${summary} Storybook is already running at ${ctx.origin} — reuse it. Do NOT start another Storybook or change its port to view this review; the running instance already serves it.
+
+Two things you must do now, both of them:
+1. **Open ${reviewUrl} yourself in your preview browser.** If you have any browser-preview or navigate tool in this session (e.g. preview_eval or an equivalent), call it on this URL so the review opens in your preview window immediately. Don't merely print the link and stop — actually open it.
+2. **Show the link to the user too.** End your final response with a dedicated review section as the very last thing: its own heading on a line by itself (e.g. \`## 👀 Review your changes\`), then a one-line explanation of what the review is, then on the next line the review page as a markdown link prefixed with a 👉 so it's easy to spot: \`👉 [Open the Storybook review page](${reviewUrl})\`. For the explanation, use something like: "The review shows the ${storyCount} stor${storyNoun} most relevant for you to review right now. Because this is AI-curated, results may be inaccurate or incomplete." Put nothing after the link — not a trailing sentence the user has to hunt for. The user needs to see this link even after you've opened it yourself.`;
+}
+
 export const reviewToolset = defineToolset({
   id: 'review',
   description: 'Create a curated Storybook review.',
@@ -121,7 +142,10 @@ export const reviewToolset = defineToolset({
       schema: reviewCreateInputSchema,
       outputSchema: reviewCreateOutputSchema,
       description: describeCreate,
-      handler: async (review: ReviewCreateInput, ctx): Promise<ReviewCreateOutput> => {
+      handler: async (
+        review: ReviewCreateInput,
+        ctx
+      ): Promise<ToolsetOutcome<ReviewCreateOutput, never>> => {
         if (!ctx.origin) {
           throw new OpenServiceMissingOriginError({
             toolsetId: 'review',
@@ -152,27 +176,13 @@ export const reviewToolset = defineToolset({
           changedFileCount: review.changedFiles.length,
         });
 
-        return {
+        const data: ReviewCreateOutput = {
           reviewUrl: `${ctx.origin.replace(/\/$/, '')}/?path=${REVIEW_PAGE_PATH}`,
           collectionCount,
           storyCount,
         };
-      },
-      format: ({ reviewUrl, collectionCount, storyCount }: ReviewCreateOutput, ctx) => {
-        const storyNoun = storyCount === 1 ? 'y' : 'ies';
-        const summary = `Review applied: ${collectionCount} collection${collectionCount === 1 ? '' : 's'}, ${storyCount} stor${storyNoun}.`;
 
-        if (ctx.consumer !== 'mcp') {
-          return `${summary} Open ${reviewUrl} to view it.`;
-        }
-
-        // Agents were observed ending visual work at the tool result, so the result itself has to
-        // carry both follow-ups: open the page, and surface the link in the final response.
-        return `${summary} Storybook is already running at ${ctx.origin} — reuse it. Do NOT start another Storybook or change its port to view this review; the running instance already serves it.
-
-Two things you must do now, both of them:
-1. **Open ${reviewUrl} yourself in your preview browser.** If you have any browser-preview or navigate tool in this session (e.g. preview_eval or an equivalent), call it on this URL so the review opens in your preview window immediately. Don't merely print the link and stop — actually open it.
-2. **Show the link to the user too.** End your final response with a dedicated review section as the very last thing: its own heading on a line by itself (e.g. \`## 👀 Review your changes\`), then a one-line explanation of what the review is, then on the next line the review page as a markdown link prefixed with a 👉 so it's easy to spot: \`👉 [Open the Storybook review page](${reviewUrl})\`. For the explanation, use something like: "The review shows the ${storyCount} stor${storyNoun} most relevant for you to review right now. Because this is AI-curated, results may be inaccurate or incomplete." Put nothing after the link — not a trailing sentence the user has to hunt for. The user needs to see this link even after you've opened it yourself.`;
+        return { ok: true, data, markdown: formatReviewApplied(data, ctx) };
       },
     },
   },
