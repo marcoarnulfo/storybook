@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import type { Options } from 'storybook/internal/types';
 import { MCP_TOOL_NAMES } from 'storybook/open-service';
-import type { ManifestProvider, ResolvedDocsEntry, Source } from 'storybook/internal/toolsets-docs';
+import type { DocsAccess, ManifestProvider, Source } from 'storybook/internal/toolsets-docs';
 
 import { GET_UI_BUILDING_INSTRUCTIONS_TOOL_NAME } from './tools/tool-names.ts';
 
@@ -45,8 +45,8 @@ export type AddonOptionsOutput = v.InferOutput<typeof AddonOptions>;
  * What serving the docs tools needs from the request being handled.
  *
  * Only a composition uses these: it reads several Storybooks, each through its own provider, and
- * the local one in-process when docgen-server mode is on. A single Storybook is served by the docs
- * toolset registered at boot and needs none of it.
+ * the local one through its own access when docgen-server mode is on. A single Storybook is served
+ * by the docs toolset registered at boot and needs none of it.
  */
 export type DocsServingContext = {
   /** The in-flight request; the default provider derives the manifest origin from it. */
@@ -55,8 +55,8 @@ export type DocsServingContext = {
   manifestProvider?: ManifestProvider;
   /** The composed Storybooks, when `refs` are configured. */
   sources?: Source[];
-  /** Resolves one entry in-process for the local source, in docgen-server mode. */
-  resolveEntry?: (id: string, source?: Source) => Promise<ResolvedDocsEntry | undefined>;
+  /** Reads the local Storybook directly, in docgen-server mode. */
+  localAccess?: DocsAccess;
 };
 
 /**

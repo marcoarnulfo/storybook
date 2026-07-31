@@ -7,18 +7,18 @@ import type { Options } from 'storybook/internal/types';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { buffer } from 'node:stream/consumers';
 import { collectTelemetry } from './telemetry.ts';
+import type { DocsAccess } from 'storybook/internal/toolsets-docs';
 import type { AddonContext, AddonOptionsOutput } from './types.ts';
 import { logger } from 'storybook/internal/node-logger';
 import {
   getEffectiveToolAvailability,
   getToolAvailability,
 } from './utils/get-tool-availability.ts';
-import { estimateTokens } from './utils/estimate-tokens.ts';
+import { estimateTokens } from 'storybook/internal/toolsets-docs';
 import type { CompositionAuth } from './auth/index.ts';
 import { buildServerInstructions } from './instructions/build-server-instructions.ts';
 import { DEFAULT_MCP_ENDPOINT, STORYBOOK_MCP_PROXY_HEADER } from './constants.ts';
 import { registerAddonMcpTools } from './tools/tool-registry.ts';
-import type { DocgenServerManifestAccess } from './manifests/in-process-provider.ts';
 
 let transport: HttpTransport<AddonContext> | undefined;
 let origin: string | undefined;
@@ -119,7 +119,7 @@ type McpServerHandlerParams = {
    * Selected (alongside `manifestProvider`) by the caller; the doc tools only consult
    * it for the local source. Undefined on older Storybook versions / when the feature is off.
    */
-  resolveEntry?: DocgenServerManifestAccess['resolveEntry'];
+  localAccess?: DocsAccess;
   /** Composition auth handler for multi-source mode */
   compositionAuth: CompositionAuth;
 };
@@ -132,7 +132,7 @@ export const mcpServerHandler = async ({
   endpoint = DEFAULT_MCP_ENDPOINT,
   sources,
   manifestProvider,
-  resolveEntry,
+  localAccess,
   compositionAuth,
 }: McpServerHandlerParams) => {
   // Initialize MCP server and transport on first request, with concurrency safety
@@ -159,7 +159,7 @@ export const mcpServerHandler = async ({
     request: webRequest,
     sources,
     manifestProvider,
-    resolveEntry,
+    localAccess,
   };
 
   const response = await transport!.respond(webRequest, addonContext);

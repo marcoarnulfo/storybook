@@ -49,6 +49,11 @@ export type ToolsetMethodDescription = string | ((context: ToolsetCtx) => string
  *
  * `format` may return multiple strings: MCP renders each as its own text block, the CLI joins them
  * with newlines.
+ *
+ * `reportUsage` is for the telemetry a handler cannot send because it describes the rendered text —
+ * how large the answer was. It runs once per call, after `format`, on every consumer, so the same
+ * event is reported whether the caller came through MCP or the CLI. Telemetry that does not need
+ * the text belongs in `handler` instead.
  */
 export type ToolsetMethod<TSchema extends AnySchema = AnySchema, TOutput = unknown> = {
   description: ToolsetMethodDescription;
@@ -57,6 +62,15 @@ export type ToolsetMethod<TSchema extends AnySchema = AnySchema, TOutput = unkno
   outputSchema?: AnySchema;
   handler: (input: StandardSchemaV1.InferOutput<TSchema>, context: ToolsetCtx) => TOutput;
   format: (data: Awaited<TOutput>, context: ToolsetCtx) => string | string[];
+  reportUsage?: (
+    result: {
+      input: StandardSchemaV1.InferOutput<TSchema>;
+      data: Awaited<TOutput>;
+      /** Everything `format` returned, joined — what the consumer actually shows. */
+      text: string;
+    },
+    context: ToolsetCtx
+  ) => void | Promise<void>;
 };
 
 // `any` permits a heterogeneous method map. Each individual method remains typed by `defineToolset`.

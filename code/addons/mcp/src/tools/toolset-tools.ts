@@ -49,17 +49,6 @@ export type ToolsetToolOptions = {
    */
   resolveOrigin?: (server: Server) => string | undefined;
   /**
-   * Telemetry computed from the finished result. Most methods report from their handler via
-   * `ctx.telemetry`; the docs events also carry a token estimate of the rendered text, which only
-   * exists here in the adapter. Returning nothing reports no event, which is how a listing that
-   * produced no readable source stays out of the counts.
-   */
-  resultTelemetry?: (result: {
-    input: unknown;
-    data: unknown;
-    text: string;
-  }) => { event: string; payload: Record<string, unknown> } | undefined;
-  /**
    * Marks the result as an MCP error from the returned data. Some contracts (the docs tools'
    * not-found responses) report failure without throwing, so the flag cannot come from a catch.
    */
@@ -136,13 +125,12 @@ export async function callToolsetMethod(
     const formatted = method.format(data as never, ctx);
     const blocks = Array.isArray(formatted) ? formatted : [formatted];
 
-    if (options.resultTelemetry && !server.ctx.custom?.disableTelemetry) {
-      const reported = options.resultTelemetry({ input, data, text: blocks.join('\n') });
-      if (reported) {
-        const { event, payload } = reported;
-        await collectTelemetry({ event, server, toolset: options.telemetryToolset, ...payload });
-      }
-    }
+    // Reports through the same `ctx.telemetry` the handler uses, so the event is identical
+    // whichever consumer ran the method.
+    await method.reportUsage?.(
+      { input: input as never, data: data as never, text: blocks.join('\n') },
+      ctx
+    );
 
     return {
       content: blocks.map((text) => ({ type: 'text' as const, text })),

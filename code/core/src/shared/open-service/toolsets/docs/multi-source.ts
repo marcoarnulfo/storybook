@@ -29,26 +29,40 @@ export type CompositionDocsSourcesOptions = {
   sources: Source[];
   manifestProvider?: ManifestProvider;
   getRequest?: () => Request | undefined;
-  /** In-process resolver for the local source, used when `experimentalDocgenServer` is on. */
+  /**
+   * Reads the local Storybook — the source with no `url` — instead of fetching manifests from it.
+   * The dev server passes its service-backed access here when `experimentalDocgenServer` is on,
+   * where the local `/manifests/*.json` are deliberately 404'd and the data lives in the services.
+   */
+  localAccess?: DocsAccess;
+  /**
+   * Resolves a single entry in-process, short-cutting the manifest index. Part of the hosted
+   * package's public context, so it stays available to embedders that supply one.
+   */
   resolveEntry?: (id: string, source?: Source) => Promise<ResolvedDocsEntry | undefined>;
 };
 
 /**
  * Builds one access per composed source.
  *
- * Every source — local or remote — is read through the same provider access; what differs is only
- * which source the provider is handed, which is what lets a composition reuse the single-Storybook
- * implementation rather than a parallel one.
+ * Remote sources are read through the same provider access a single hosted Storybook uses, which is
+ * what lets a composition reuse that implementation rather than a parallel one. The local source
+ * may instead be handed a ready-made access, so the dev server reads itself the same way in a
+ * composition as it does alone.
  */
 export function createCompositionDocsSources({
   sources,
   manifestProvider,
   getRequest,
+  localAccess,
   resolveEntry,
 }: CompositionDocsSourcesOptions): DocsSource[] {
   return sources.map((source) => ({
     source,
-    access: createProviderDocsAccess({ source, manifestProvider, getRequest, resolveEntry }),
+    access:
+      localAccess && !source.url
+        ? localAccess
+        : createProviderDocsAccess({ source, manifestProvider, getRequest, resolveEntry }),
   }));
 }
 

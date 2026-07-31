@@ -32,6 +32,7 @@ export {
   resolveDocEntry,
 } from './access-provider.ts';
 export type { ManifestProvider, ProviderDocsAccessOptions } from './access-provider.ts';
+export { estimateTokens } from '../estimate-tokens.ts';
 export { createCompositionDocsSources, listSources } from './multi-source.ts';
 export type { CompositionDocsSourcesOptions, DocsSource } from './multi-source.ts';
 export {

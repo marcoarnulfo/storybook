@@ -14,6 +14,7 @@ import {
 import type { AllManifests } from './manifest-formatter/manifest-types.ts';
 import { listSources, resolveInSource, type DocsSource } from './multi-source.ts';
 import type { SourceListing } from './sources.ts';
+import { estimateTokens } from '../estimate-tokens.ts';
 
 /**
  * Which Storybooks these tools serve — exactly one of the two.
@@ -192,6 +193,23 @@ export function createDocsToolset(options: CreateDocsToolsetOptions) {
           listings
             ? formatMultiSourceManifestsToLists(listings, { withStoryIds })
             : formatManifestsToLists(manifests!, { withStoryIds }),
+        reportUsage: async ({ data, text }, ctx) => {
+          const { manifests, sources: listings } = data as DocsListOutput;
+          // In a composition the counts describe the first source that produced a listing, and
+          // nothing is reported when none did — a listing of nothing but errors is not a usage
+          // signal. Single-source runs have no listings array and report their own manifests.
+          const counted = manifests ?? listings?.find((listing) => listing.manifests)?.manifests;
+          if (!counted) {
+            return;
+          }
+
+          await ctx.telemetry?.('tool:listAllDocumentation', {
+            componentCount: Object.keys(counted.componentManifest.components).length,
+            docsCount: Object.keys(counted.docsManifest?.docs ?? {}).length,
+            resultTokenCount: estimateTokens(text),
+            sourceCount: listings?.length,
+          });
+        },
       },
       show: {
         schema: showSchema,
@@ -215,6 +233,13 @@ export function createDocsToolset(options: CreateDocsToolsetOptions) {
           return entry.kind === 'doc'
             ? formatDocsManifest(entry.doc)
             : formatComponentManifest(entry.component);
+        },
+        reportUsage: async ({ input, data, text }, ctx) => {
+          await ctx.telemetry?.('tool:getDocumentation', {
+            componentId: (input as { id: string }).id,
+            found: data.entry !== undefined,
+            resultTokenCount: estimateTokens(text),
+          });
         },
       },
       showStory: {

@@ -14,7 +14,8 @@ import { logger } from 'storybook/internal/node-logger';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { DEFAULT_MCP_ENDPOINT } from './constants.ts';
 import { buildStorybookAiMetadata, type StorybookAiMetadata } from './storybook-ai-metadata.ts';
-import { createDocgenServerManifestAccess } from './manifests/in-process-provider.ts';
+import { createServiceDocsAccess, getService } from 'storybook/internal/core-server';
+import { getStoryIndex } from './utils/get-story-index.ts';
 
 export const previewAnnotations: PresetPropertyFn<'previewAnnotations'> = async (
   existingAnnotations = []
@@ -40,13 +41,16 @@ export const experimental_devServer: PresetPropertyFn<
   const { refs, compositionAuth, sources, multiSource } = await resolveCompositionSources(options);
 
   // Composition (multi-source) is the only remaining consumer of the manifest-provider plumbing:
-  // single-source docs tools read the registered docs toolset instead. The local branch of the
-  // composition provider still needs the in-process access in docgen-server mode, where core 404s
-  // the local `/manifests/*.json`.
+  // single-source docs tools read the registered docs toolset instead. In docgen-server mode core
+  // 404s the local `/manifests/*.json`, so the local source reads the open services through the
+  // same access the dev server uses when it is not composed.
   const rawAvailability = await getToolAvailability(options);
-  const docgenServerAccess =
+  const localAccess =
     rawAvailability.docgenServer && refs.length > 0
-      ? createDocgenServerManifestAccess(options)
+      ? createServiceDocsAccess({
+          storyIndex: { getIndex: () => getStoryIndex(options) },
+          getService,
+        })
       : undefined;
 
   let createManifestProvider: ((req: IncomingMessage) => ManifestProvider) | undefined;
@@ -59,15 +63,14 @@ export const experimental_devServer: PresetPropertyFn<
 
     logger.info(`Sources: ${(sources ?? []).map((s) => s.id).join(', ')}`);
 
-    // Composition provider fetches remote sources over HTTP; the local source delegates
-    // to the in-process docgen-server access when that mode is on.
-    createManifestProvider = () =>
-      compositionAuth.createManifestProvider(origin, docgenServerAccess?.manifestProvider);
+    // Remote sources are fetched over HTTP; the local one is read through `localAccess` when
+    // docgen-server mode is on, and over HTTP from this origin otherwise.
+    createManifestProvider = () => compositionAuth.createManifestProvider(origin);
   }
 
   const manifestAccessFor = (req: IncomingMessage) => ({
     manifestProvider: createManifestProvider?.(req),
-    resolveEntry: docgenServerAccess?.resolveEntry,
+    localAccess,
   });
 
   // Serve .well-known/oauth-protected-resource for MCP auth

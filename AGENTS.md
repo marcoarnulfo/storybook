@@ -96,14 +96,18 @@ AST indexing keeps the sidebar fast and prevents one broken story file from brea
 - All core OSA services are `internal: true` and may change without a public semver bump. Resolve
   internal services with `getService(id, { internal: true })`. A plain `getService(id)` throws when
   the service is internal.
-- A toolset has an `id`, a description, and methods with five fields: `description`, `schema`
-  (input), optional `outputSchema`, `handler`, and `format`.
+- A toolset has an `id`, a description, and methods with six fields: `description`, `schema`
+  (input), optional `outputSchema`, `handler`, `format`, and optional `reportUsage`.
 - `handler(input, ctx)` produces data and owns side effects and telemetry; `format(data, ctx)`
   renders that data as text and returns `string | string[]`. They are separate because one MCP
   reply carries `content` (text) and `structuredContent` (JSON matching `outputSchema`) at once,
   and both must come from a single run — re-running a method with side effects would repeat them.
   The CLI's `--json` is "skip `format`". Multiple blocks exist because `preview-stories` renders one
   text block per URL.
+- `reportUsage({ input, data, text }, ctx)` runs once after `format`, on every consumer, and exists
+  only for telemetry that describes the rendered answer — the docs events' `resultTokenCount`.
+  Telemetry that does not need the text belongs in `handler`. Adapters must call it rather than
+  reporting docs events themselves, or the CLI silently stops reporting them.
 - `ctx` is `{ consumer: 'cli' | 'mcp', origin?, getService, telemetry? }`. A method's
   `description` may be a function of `ctx`, so agent-facing prose lives with the capability. Name
   sibling tools through `getRef(ctx)` rather than hardcoding either spelling — it renders the frozen
@@ -123,7 +127,8 @@ AST indexing keeps the sidebar fast and prevents one broken story file from brea
   alone, including `storybook ai` metadata generation, which never starts a dev server. Whatever
   gates registration must match the gate that decides whether the tool is offered.
 - The docs toolset is runtime-agnostic behind an injected `DocsAccess` (`list` + `resolve`), so one
-  definition serves every runtime. Three accesses implement it: `createServiceDocsAccess` (open
+  definition serves every runtime. Three accesses implement it — there is deliberately no fourth:
+  `createServiceDocsAccess` (open
   services, when `experimentalDocgenServer` is on), `createManifestDocsAccess` (the manifests core
   builds, the default) and `createProviderDocsAccess` (manifest files over any provider — HTTP, a
   static bundle, an authenticated proxy — following `$ref`s and validating on arrival). A test
@@ -131,7 +136,10 @@ AST indexing keeps the sidebar fast and prevents one broken story file from brea
 - Composition is access *composition*, not a second implementation: `createCompositionDocsSources`
   builds one access per source and `createDocsToolset({ sources })` adds the `storybookId` input,
   groups the listing per source, and isolates a failing source — unless every source fails, which
-  is reported as one error instead of a page of them.
+  is reported as one error instead of a page of them. Its `localAccess` option reads the source with
+  no `url` directly, which is how the dev server reads itself the same way composed as it does
+  alone; addon-mcp passes `createServiceDocsAccess` there in docgen-server mode rather than owning a
+  second engine.
 - `@storybook/mcp` and `@storybook/addon-mcp` both register their docs tools from that toolset
   through the dependency-light `storybook/internal/toolsets-docs` entry. `@storybook/mcp` takes
   `storybook` as a devDependency and bundles it, so its published dependencies must stay free of

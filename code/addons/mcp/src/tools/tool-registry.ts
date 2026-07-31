@@ -6,13 +6,11 @@ import {
   createDocsToolset,
   isDocsShowError,
   isDocsShowStoryError,
-  type DocsListOutput,
   type DocsToolset,
 } from 'storybook/internal/toolsets-docs';
 import type { AddonContext } from '../types.ts';
 import type { ToolAvailability } from '../utils/get-tool-availability.ts';
 import { withFriendlyErrors } from '../utils/format-validation-issues.ts';
-import { estimateTokens } from '../utils/estimate-tokens.ts';
 import { PREVIEW_STORIES_RESOURCE_URI, addPreviewStoriesResource } from './preview-stories.ts';
 import {
   buildStorybookStoryInstructions,
@@ -121,43 +119,18 @@ function fromToolset(
   };
 }
 
-/** Docs telemetry keeps its historical payload, including the rendered-text token estimate. */
+/**
+ * The docs rows carry no telemetry of their own: the events live on the toolset's methods, so the
+ * CLI reports them too.
+ */
 const docsListOptions: ToolsetToolOptions = {
   method: 'docs.list',
   telemetryToolset: 'docs',
-  resultTelemetry: ({ data, text }) => {
-    const { manifests, sources } = data as DocsListOutput;
-    // In a composition the counts describe the first source that produced a listing, and the
-    // event is skipped entirely when none did — a listing of nothing but errors is not a usage
-    // signal. Single-source runs have no sources array and report their own manifests.
-    const counted = manifests ?? sources?.find((source) => source.manifests)?.manifests;
-    if (!counted) {
-      return undefined;
-    }
-
-    return {
-      event: 'tool:listAllDocumentation',
-      payload: {
-        componentCount: Object.keys(counted.componentManifest.components).length,
-        docsCount: Object.keys(counted.docsManifest?.docs ?? {}).length,
-        resultTokenCount: estimateTokens(text),
-        sourceCount: sources?.length,
-      },
-    };
-  },
 };
 
 const docsShowOptions: ToolsetToolOptions = {
   method: 'docs.show',
   telemetryToolset: 'docs',
-  resultTelemetry: ({ input, data, text }) => ({
-    event: 'tool:getDocumentation',
-    payload: {
-      componentId: (input as { id: string }).id,
-      found: (data as { entry?: unknown }).entry !== undefined,
-      resultTokenCount: estimateTokens(text),
-    },
-  }),
   resultIsError: (data) => isDocsShowError(data as never),
 };
 
@@ -170,8 +143,8 @@ const docsShowStoryOptions: ToolsetToolOptions = {
 /**
  * Builds the docs toolset for a composition.
  *
- * The composed sources, their manifest provider and the in-process resolver for the local source
- * all arrive with the request, so this cannot be the toolset registered once at boot. Called
+ * The composed sources, their manifest provider and the local source's own access all arrive with
+ * the request, so this cannot be the toolset registered once at boot. Called
  * without a server for metadata only, where the sources shape the schemas but nothing is fetched.
  */
 function compositionDocsToolset(server?: McpServer<any, AddonContext>): DocsToolset {
@@ -181,7 +154,7 @@ function compositionDocsToolset(server?: McpServer<any, AddonContext>): DocsTool
       sources: custom?.sources ?? [{ id: 'local', title: 'Local' }],
       manifestProvider: custom?.manifestProvider,
       getRequest: () => custom?.request,
-      resolveEntry: custom?.resolveEntry,
+      localAccess: custom?.localAccess,
     }),
   });
 }
