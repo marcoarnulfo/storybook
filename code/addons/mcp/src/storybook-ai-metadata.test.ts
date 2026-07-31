@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { registerCoreToolsetsForTest } from './test-support/register-core-toolsets.ts';
 import { McpServer } from 'tmcp';
 import { ValibotJsonSchemaAdapter } from '@tmcp/adapter-valibot';
-import { GET_TOOL_NAME } from '@storybook/mcp';
 import { logger } from 'storybook/internal/node-logger';
 import { buildStorybookAiMetadata } from './storybook-ai-metadata.ts';
 import { getAddonVitestConstants } from './utils/addon-vitest.ts';
@@ -11,6 +10,7 @@ import { getManifestStatus } from './tools/is-manifest-available.ts';
 import { isAddonA11yEnabled } from './utils/is-addon-a11y-enabled.ts';
 import { getReviewStatus } from './utils/is-review-available.ts';
 import { isModuleGraphSupported, isModuleGraphSupportedByBuilder } from './utils/module-graph.ts';
+import { MCP_TOOL_NAMES } from 'storybook/internal/toolsets-docs';
 import {
   DISPLAY_REVIEW_TOOL_NAME,
   GET_STORIES_BY_COMPONENT_TOOL_NAME,
@@ -489,6 +489,50 @@ function createOptions({
     },
   } as any;
 }
+
+/**
+ * The published tool surface for each availability combination.
+ *
+ * Availability decides which tools an agent is offered at all, so it is part of the wire contract
+ * and not just internal wiring. These pin the surface per combination; the descriptions and schemas
+ * behind each name are snapshotted by the e2e suite against a live server.
+ */
+const LIST_TOOL_NAME = MCP_TOOL_NAMES['docs.list'];
+const GET_TOOL_NAME = MCP_TOOL_NAMES['docs.show'];
+
+describe('tool availability variants', () => {
+  const names = async (overrides: Partial<ToolAvailability>) =>
+    (await listRegisteredTools(createOptions(), { availability: createAvailability(overrides) }))
+      .map((tool: { name: string }) => tool.name)
+      .sort();
+
+  it('offers no review tool when review is off', async () => {
+    const withReview = await names({});
+    const withoutReview = await names({ reviewEnabled: false, changeDetectionEnabled: false });
+
+    expect(withReview).toContain(DISPLAY_REVIEW_TOOL_NAME);
+    expect(withoutReview).not.toContain(DISPLAY_REVIEW_TOOL_NAME);
+  });
+
+  it('offers no test tool when addon-vitest is absent', async () => {
+    expect(await names({ testSupported: false })).not.toContain(RUN_STORY_TESTS_TOOL_NAME);
+  });
+
+  it('keeps the docs tools when a11y is off, which only varies their prose', async () => {
+    expect(await names({ a11yEnabled: false })).toEqual(await names({ a11yEnabled: true }));
+  });
+
+  it('offers no docs tools when docs are unavailable', async () => {
+    const withoutDocs = await names({
+      docsEnabled: false,
+      docsHasManifests: false,
+      docsFeatureEnabled: false,
+    });
+
+    expect(withoutDocs).not.toContain(LIST_TOOL_NAME);
+    expect(withoutDocs).not.toContain(GET_TOOL_NAME);
+  });
+});
 
 function createAvailability(overrides: Partial<ToolAvailability> = {}): ToolAvailability {
   return {
