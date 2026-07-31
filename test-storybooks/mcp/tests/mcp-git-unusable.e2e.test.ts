@@ -1,13 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { x } from 'tinyexec';
-import {
-	createMCPRequestBody,
-	parseMCPResponse,
-	waitForMcpEndpoint,
-	killPort,
-	startStorybook,
-	stopStorybook,
-} from './helpers';
+import { mcpRequest, waitForMcpEndpoint, killPort, startStorybook, stopStorybook } from './helpers';
 
 /**
  * The git-unusable scenario (not a git repository, or git itself broken) with `changeDetection`
@@ -20,20 +13,6 @@ const MCP_ENDPOINT = `http://localhost:${PORT}/mcp`;
 const STARTUP_TIMEOUT = 60_000;
 
 let storybookProcess: ReturnType<typeof x> | null = null;
-
-async function mcpRequest(method: string, params: any = {}, id: number = 1) {
-	const response = await fetch(MCP_ENDPOINT, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(createMCPRequestBody(method, params, id)),
-	});
-
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-
-	return parseMCPResponse(response);
-}
 
 describe('MCP endpoint when git is unusable', () => {
 	beforeAll(async () => {
@@ -49,7 +28,7 @@ describe('MCP endpoint when git is unusable', () => {
 	});
 
 	it('answers get-changed-stories with the no-changes sentence instead of an error', async () => {
-		const response = await mcpRequest('tools/call', {
+		const response = await mcpRequest(MCP_ENDPOINT, 'tools/call', {
 			name: 'get-changed-stories',
 			arguments: {},
 		});

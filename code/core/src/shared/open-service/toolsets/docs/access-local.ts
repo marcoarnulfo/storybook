@@ -14,13 +14,12 @@
 
 import type { StoryIndex } from 'storybook/internal/types';
 
+import { DOCGEN_SERVICE_ID } from '../../services/docgen/paths.ts';
 import { getRegisteredServices, getService } from '../../service-registry.ts';
 import type { ToolsetGetService } from '../../toolset-definition.ts';
 import { createManifestDocsAccess, type RawManifests } from './access-manifest.ts';
 import { createServiceDocsAccess } from './access-service.ts';
 import type { DocsAccess } from './access.ts';
-
-const DOCGEN_SERVICE_ID = 'core/docgen';
 
 export type LocalDocsAccessOptions = {
   storyIndex: { getIndex: () => Promise<StoryIndex> };

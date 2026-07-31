@@ -78,16 +78,17 @@ describe('published package contract', () => {
 
   // No single-valibot assertion (yet): `valibot` is a real dependency, but a second copy arrives
   // pre-inlined inside core's prebuilt browser chunks, which the runtime bundle consumes.
-  // Externalizing that copy would mean bundling core from source, changing the runtime bytes this
-  // release's QA proved wire-identical — deferred until the JS bundling moves to source. The
-  // duplicated copy only ever validates core-authored schemas, so the two cannot skew per input.
+  // Externalizing that copy would mean bundling core from source — a rebundling of the shipped
+  // runtime deferred until the JS bundling moves to source. The duplicated copy only ever
+  // validates core-authored schemas, so the two cannot skew per input.
 
   it.runIf(DTS_BUILT)('ships declarations a pure-Node consumer can check', () => {
     const declarations = readFileSync(DTS_ENTRY, 'utf-8');
 
-    // No react (nor any module reference to it): consumers of this package have no @types/react,
-    // and `skipLibCheck: false` must keep working for them.
-    expect(declarations).not.toMatch(/["']react["']/);
+    // No react (nor any module reference to it, including subpaths like react/jsx-runtime):
+    // consumers of this package have no @types/react, and `skipLibCheck: false` must keep
+    // working for them.
+    expect(declarations).not.toMatch(/["']react(?:["']|\/)/);
     expect(declarations).not.toMatch(STORYBOOK_IMPORT_RE);
   });
 

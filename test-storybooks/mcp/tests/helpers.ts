@@ -19,6 +19,21 @@ export async function parseMCPResponse(response: Response) {
 	return JSON.parse(jsonText);
 }
 
+/** One JSON-RPC request against an MCP endpoint, with the SSE framing parsed away. */
+export async function mcpRequest(endpoint: string, method: string, params: any = {}, id: number = 1) {
+	const response = await fetch(endpoint, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(createMCPRequestBody(method, params, id)),
+	});
+
+	if (!response.ok) {
+		throw new Error(`HTTP error! status: ${response.status}`);
+	}
+
+	return parseMCPResponse(response);
+}
+
 export async function waitForMcpEndpoint(
 	endpoint: string,
 	options: { maxAttempts?: number; interval?: number; acceptStatuses?: number[] } = {},

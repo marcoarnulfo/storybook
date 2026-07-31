@@ -1,13 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { x } from 'tinyexec';
-import {
-	createMCPRequestBody,
-	parseMCPResponse,
-	waitForMcpEndpoint,
-	killPort,
-	startStorybook,
-	stopStorybook,
-} from './helpers';
+import { mcpRequest, waitForMcpEndpoint, killPort, startStorybook, stopStorybook } from './helpers';
 
 /**
  * The addon-vitest installed-but-not-enabled scenario (a hoisted monorepo dependency, or an addon
@@ -23,20 +16,6 @@ const STARTUP_TIMEOUT = 60_000;
 
 let storybookProcess: ReturnType<typeof x> | null = null;
 
-async function mcpRequest(method: string, params: any = {}, id: number = 1) {
-	const response = await fetch(MCP_ENDPOINT, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(createMCPRequestBody(method, params, id)),
-	});
-
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
-	}
-
-	return parseMCPResponse(response);
-}
-
 describe('MCP endpoint with addon-vitest installed but not enabled', () => {
 	beforeAll(async () => {
 		await killPort(PORT);
@@ -50,7 +29,7 @@ describe('MCP endpoint with addon-vitest installed but not enabled', () => {
 	});
 
 	it('serves every tool except run-story-tests', async () => {
-		const response = await mcpRequest('tools/list');
+		const response = await mcpRequest(MCP_ENDPOINT, 'tools/list');
 
 		const names = response.result.tools.map((tool: { name: string }) => tool.name).sort();
 		expect(names).toEqual([
@@ -66,7 +45,7 @@ describe('MCP endpoint with addon-vitest installed but not enabled', () => {
 	});
 
 	it('still answers tool calls', async () => {
-		const response = await mcpRequest('tools/call', {
+		const response = await mcpRequest(MCP_ENDPOINT, 'tools/call', {
 			name: 'get-storybook-story-instructions',
 			arguments: {},
 		});

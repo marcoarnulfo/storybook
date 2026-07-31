@@ -45,7 +45,10 @@ import { runTestRunner } from './node/boot-test-runner.ts';
 import type { CachedState, ErrorLike, StoreState } from './types.ts';
 import type { StoreEvent } from './types.ts';
 
-// using await presets.apply('isAddonVitestEnabled', false);
+/**
+ * Preset marker: true exactly when this addon is enabled, since only enabled addons' presets load.
+ * addon-mcp's availability gate reads it through `presets.apply('isAddonVitestEnabled', false)`.
+ */
 export const isAddonVitestEnabled = true;
 
 type Event =
