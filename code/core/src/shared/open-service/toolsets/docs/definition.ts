@@ -166,6 +166,10 @@ function renderShow(data: DocsShowOutput, ctx: ToolsetCtx): string {
       return resolution.entry.kind === 'doc'
         ? formatDocsManifest(resolution.entry.doc)
         : formatComponentManifest(resolution.entry.component);
+    default: {
+      const exhaustive: never = resolution;
+      return exhaustive;
+    }
   }
 }
 
@@ -185,6 +189,10 @@ function renderShowStory(data: DocsShowStoryOutput, ctx: ToolsetCtx): string {
     }
     case 'found':
       return formatStoryDocumentation(resolution.component, data.storyName);
+    default: {
+      const exhaustive: never = resolution;
+      return exhaustive;
+    }
   }
 }
 

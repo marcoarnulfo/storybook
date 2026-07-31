@@ -147,6 +147,19 @@ export function getStoryDocumentationToolMetadata(options?: {
 }
 
 /**
+ * The one place this package crosses the tmcp type-inference boundary: tmcp types a tool's metadata
+ * and handler from a literal schema generic, but these schemas come from the bundled core toolset
+ * and resolve only at runtime, so registration steps out of that inference here.
+ */
+function registerTool(
+  server: Server,
+  metadata: DocsToolMetadata & { enabled?: ToolEnabled },
+  handler: (input: never) => Promise<unknown>
+): void {
+  server.tool(metadata as never, handler as never);
+}
+
+/**
  * Runs one method against the request's toolset and unwraps its outcome into an MCP result.
  *
  * A manifest that cannot be fetched or parsed is reported as tool output rather than thrown, so the
@@ -184,9 +197,10 @@ export async function addListAllDocumentationTool(
   enabled?: ToolEnabled,
   options?: { multiSource?: boolean }
 ) {
-  server.tool(
-    { ...getListAllDocumentationToolMetadata(options), enabled } as never,
-    (async (input: unknown) => {
+  registerTool(
+    server,
+    { ...getListAllDocumentationToolMetadata(options), enabled },
+    async (input: unknown) => {
       const context = server.ctx.custom;
       const { data, result } = await call(server, 'list', input);
 
@@ -204,7 +218,7 @@ export async function addListAllDocumentationTool(
       }
 
       return result;
-    }) as never
+    }
   );
 }
 
@@ -213,9 +227,10 @@ export async function addGetDocumentationTool(
   enabled?: ToolEnabled,
   options?: { multiSource?: boolean }
 ) {
-  server.tool(
-    { ...getDocumentationToolMetadata(options), enabled } as never,
-    (async (input: { id: string; storybookId?: string }) => {
+  registerTool(
+    server,
+    { ...getDocumentationToolMetadata(options), enabled },
+    async (input: { id: string; storybookId?: string }) => {
       const context = server.ctx.custom;
       const { data, result } = await call(server, 'show', input);
 
@@ -244,7 +259,7 @@ export async function addGetDocumentationTool(
       }
 
       return result;
-    }) as never
+    }
   );
 }
 
@@ -253,8 +268,9 @@ export async function addGetStoryDocumentationTool(
   enabled?: ToolEnabled,
   options?: { multiSource?: boolean }
 ) {
-  server.tool(
-    { ...getStoryDocumentationToolMetadata(options), enabled } as never,
-    (async (input: unknown) => (await call(server, 'showStory', input)).result) as never
+  registerTool(
+    server,
+    { ...getStoryDocumentationToolMetadata(options), enabled },
+    async (input: unknown) => (await call(server, 'showStory', input)).result
   );
 }

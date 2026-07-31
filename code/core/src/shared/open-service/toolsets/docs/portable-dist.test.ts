@@ -45,6 +45,20 @@ const MODULE_SPECIFIER_RE =
   /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+|\bmodule\s+)["']([^"']+)["']/g;
 
 /**
+ * Triple-slash directives (`/// <reference types|path|lib="..." />`) pull in declarations outside
+ * the import syntax above, so their targets count as specifiers too: a `path` reference breaks
+ * flatness and a `types`/`lib` reference must pass the allowlist like any import.
+ */
+const REFERENCE_DIRECTIVE_RE = /^\/\/\/\s*<reference\s+(?:types|path|lib)\s*=\s*["']([^"']+)["']/gm;
+
+function readSpecifiers(): string[] {
+  const source = readFileSync(DTS_ARTIFACT, 'utf-8');
+  return [...source.matchAll(MODULE_SPECIFIER_RE), ...source.matchAll(REFERENCE_DIRECTIVE_RE)].map(
+    (match) => match[1]
+  );
+}
+
+/**
  * The dist-reading assertions are skipped on a working copy that has not been production-built,
  * which would make them pass vacuously in CI — where a build always precedes the tests. So there,
  * the artifact's absence is the failure.
@@ -57,19 +71,11 @@ describe('portable toolsets-docs declarations', () => {
   });
 
   it.runIf(DTS_BUILT)('are one flat file: no relative imports', () => {
-    const specifiers = [...readFileSync(DTS_ARTIFACT, 'utf-8').matchAll(MODULE_SPECIFIER_RE)].map(
-      (match) => match[1]
-    );
-
-    expect(specifiers.filter((specifier) => specifier.startsWith('.'))).toEqual([]);
+    expect(readSpecifiers().filter((specifier) => specifier.startsWith('.'))).toEqual([]);
   });
 
   it.runIf(DTS_BUILT)('import exactly the allowlist', () => {
-    const specifiers = [...readFileSync(DTS_ARTIFACT, 'utf-8').matchAll(MODULE_SPECIFIER_RE)].map(
-      (match) => match[1]
-    );
-
-    expect([...new Set(specifiers)].sort()).toEqual(IMPORT_ALLOWLIST);
+    expect([...new Set(readSpecifiers())].sort()).toEqual(IMPORT_ALLOWLIST);
   });
 
   it.runIf(DTS_BUILT)('stay within their size budget', () => {

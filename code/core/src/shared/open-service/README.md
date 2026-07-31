@@ -101,31 +101,43 @@ Use `defineService()` to preserve the concrete query and command map types.
 
 Services and toolsets are sibling constructs behind this one entry: **services** own internal state
 and synchronization; **toolsets** are the public agent surface for CLI and MCP adapters. A toolset
-(`defineToolset`) has an `id`, a description, and methods carrying six fields:
+(`defineToolset`) has an `id`, a description, a `telemetryGroup` (`'dev' | 'test' | 'docs'` —
+stories and review report under `dev`), and methods carrying four fields:
 
 - `description` — `string`, or a function of `ctx` when the prose differs per consumer
 - `schema` — the input schema
 - `outputSchema` — optional; published as the MCP `outputSchema`, and `structuredContent` is
-  narrowed to it. A handler may return more than this declares, so `format` has what it needs
-- `handler(input, ctx)` — produces the data, and owns side effects and telemetry
-- `format(data, ctx)` — renders that data as text, returning `string | string[]`
-- `reportUsage({ input, data, text }, ctx)` — optional; reports usage that describes the rendered
-  answer, such as a token estimate over `text`, which a handler cannot produce
+  narrowed to it. An outcome's `data` may carry more than this declares; only the declared shape
+  reaches the wire
+- `handler(input, ctx)` — the one execution: produces the data, renders the text, and owns side
+  effects and telemetry
 
-`handler` and `format` are separate because one MCP reply carries `content` (text) and
+`handler` returns a `ToolsetOutcome<TSuccess, TFailure = TSuccess>` — a discriminated union of
+`{ ok: true, data, markdown }` and `{ ok: false, data, markdown }`, written as plain object
+literals (no factory helpers). The failure model is one line each: could not do the job →
+**throw**; did the job and the answer is bad news (a failed test run, a not-found lookup) →
+**return `{ ok: false, data, markdown }`**. Infallible methods declare `TFailure = never`.
+
+One handler owns data and rendering because one MCP reply carries `content` (text) and
 `structuredContent` (JSON) at once and both must come from a single run — re-running a method with
-side effects would repeat them. The CLI's `--json` is "skip `format`". `format` may return several
-blocks because `preview-stories` renders one text block per URL.
+side effects would repeat them. Usage telemetry reports inline in the handler with the rendered
+text in hand, so no consumer can forget it. Adapters unwrap outcomes mechanically — text blocks
+from `markdown`, `structuredContent` from `data`, MCP `isError` (and later CLI exit codes) from
+`ok` — and must not re-derive meaning from the data. `markdown` may be `string | string[]`:
+`preview-stories` renders one text block per URL; the CLI's `--json` (Milestone 5) becomes "return
+`data`, skip `markdown`".
 
-`reportUsage` runs once after `format`, on every consumer. It exists for the telemetry a handler
-cannot send because it describes the rendered answer rather than the call; telemetry that does not
-need the text belongs in `handler`. An adapter must call it instead of reporting those events
-itself, or one consumer silently stops reporting them.
+An error whose message speaks to the agent and names its own recovery declares `agentFacing: true`
+(a `StorybookError` constructor prop); adapters surface such errors verbatim by reading that
+property — never by keeping a class list, which misclassifies across bundle copies.
 
-`ctx` is `{ consumer: 'cli' | 'mcp', origin?, getService, telemetry? }`. Descriptions that name a
-sibling tool must render it through `getRef(ctx)` rather than hardcoding either spelling, so the
-same sentence reads as the MCP tool name or the CLI command per consumer. Facts that are fixed at
-boot (whether review or a11y is enabled) are factory options on the toolset, not `ctx` fields.
+`ctx` is `{ consumer: 'cli' | 'mcp', origin?, uiRoot?, getService, telemetry? }`. `uiRoot` is where
+the consumer's Storybook UI is reachable when that differs from `origin` (a sub-path-hosted dev
+server); methods that link into the UI prefer it, and the adapter derives it from the request.
+Descriptions that name a sibling tool must render it through `getRef(ctx)` rather than hardcoding
+either spelling, so the same sentence reads as the MCP tool name or the CLI command per consumer.
+Facts that are fixed at boot (whether review or a11y is enabled) are factory options on the
+toolset, not `ctx` fields.
 
 Toolsets register imperatively via `registerToolset`, called from the same place the paired service
 registers (for core and addons, the `services` preset hook — the mechanism itself is
