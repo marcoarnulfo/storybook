@@ -27,6 +27,13 @@ export {
   getToolset,
   registerToolset,
 } from './toolset-registry.ts';
+// The errors the registry functions above throw. Catchers must import them from this same entry:
+// each core entry bundles its own copy of a class, so an error class imported from another entry
+// is a different constructor and `instanceof` silently fails.
+export {
+  OpenServiceDuplicateToolsetError,
+  OpenServiceMissingToolsetError,
+} from '../../server-errors.ts';
 export type { KnownToolsets } from './toolset-types.ts';
 
 export type { DocgenService } from './services/docgen/definition.ts';

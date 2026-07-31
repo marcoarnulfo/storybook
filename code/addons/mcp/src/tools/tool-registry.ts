@@ -1,7 +1,6 @@
 import type { McpServer } from 'tmcp';
 import type { Options } from 'storybook/internal/types';
 import { logger } from 'storybook/internal/node-logger';
-import { OpenServiceMissingToolsetError } from 'storybook/internal/server-errors';
 import {
   createCompositionDocsSources,
   createDocsToolset,
@@ -18,7 +17,10 @@ import {
   getStorybookStoryInstructionsToolMetadata,
   addGetUIBuildingInstructionsTool,
 } from './get-storybook-story-instructions.ts';
-import { MCP_TOOL_NAMES } from 'storybook/open-service';
+// The error class must come from the same entry as `getToolset` (which throws it, via
+// `toolset-tools.ts`); a copy from another core entry is a different constructor and
+// `instanceof` would silently fail.
+import { MCP_TOOL_NAMES, OpenServiceMissingToolsetError } from 'storybook/open-service';
 import { GET_UI_BUILDING_INSTRUCTIONS_TOOL_NAME } from './tool-names.ts';
 import { resolveReviewOrigin } from './review-origin.ts';
 import {
@@ -285,17 +287,8 @@ const addonToolDefinitions: AddonToolDefinition[] = [
  * metadata build — the error log keeps it loud. Only this one error is contained: every other
  * failure rethrows, so a genuinely broken adapter still fails fast.
  */
-// The name check backs up `instanceof`: the error can be constructed by a different copy of the
-// class when the registry and this adapter resolve through different core entries (or src vs
-// dist in tests). The expected identity — `StorybookError`'s stable code + name — is computed
-// from the imported class, and matched exactly so a near-miss still fails fast.
-const MISSING_TOOLSET_ERROR_NAME = new OpenServiceMissingToolsetError({ toolsetId: '' }).name;
-const isMissingToolsetError = (error: unknown): boolean =>
-  error instanceof OpenServiceMissingToolsetError ||
-  (error instanceof Error && error.name === MISSING_TOOLSET_ERROR_NAME);
-
 function dropRowIfToolsetMissing(name: string, error: unknown): undefined {
-  if (!isMissingToolsetError(error)) {
+  if (!(error instanceof OpenServiceMissingToolsetError)) {
     throw error;
   }
   logger.error(`Skipping MCP tool "${name}", its backing toolset is not registered: ${error}`);
