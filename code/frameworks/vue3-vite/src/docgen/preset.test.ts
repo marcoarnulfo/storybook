@@ -19,6 +19,7 @@ const optionsWith = (docgen?: FrameworkOptions['docgen'], features: Record<strin
 
 const existing: DocgenProviderDescriptor[] = [{ moduleSpecifier: '/addon/docgen-worker.js' }];
 const docgenServerOn = { experimentalDocgenServer: true };
+const componentsManifestOn = { ...docgenServerOn, componentsManifest: true };
 
 describe('experimental_docgenProvider', () => {
   it('appends a descriptor pointing at the renderer worker module', async () => {
@@ -53,10 +54,19 @@ describe('experimental_manifests', () => {
   // Core asserts `components.meta.docgen` is present whenever the feature is on, so omitting it
   // fails a Vue `storybook build` outright rather than degrading the debugger.
   it('declares the engine so core can label the components debugger', async () => {
-    await expect(manifests('vue-component-meta', docgenServerOn)).resolves.toEqual({
+    await expect(manifests('vue-component-meta', componentsManifestOn)).resolves.toEqual({
       components: { v: 0, components: {}, meta: { docgen: 'vue-component-meta', durationMs: 0 } },
     });
   });
+
+  it.each(['vue-docgen-api' as const, undefined, false as const])(
+    'rejects the components manifest for docgen: %s',
+    async (docgen) => {
+      await expect(manifests(docgen, componentsManifestOn)).rejects.toThrow(
+        "The Vue docgen manifest currently requires `docgen: 'vue-component-meta'` in `framework.options`."
+      );
+    }
+  );
 
   // The manifest is populated from docgen-service payloads. When another engine (or none) runs,
   // there are no payloads, so claiming an engine here would report "0 components" against it.
