@@ -96,22 +96,36 @@ AST indexing keeps the sidebar fast and prevents one broken story file from brea
 - All core OSA services are `internal: true` and may change without a public semver bump. Resolve
   internal services with `getService(id, { internal: true })`. A plain `getService(id)` throws when
   the service is internal.
-- A toolset has an `id`, a description, and methods with six fields: `description`, `schema`
-  (input), optional `outputSchema`, `handler`, `format`, and optional `reportUsage`.
-- `handler(input, ctx)` produces data and owns side effects and telemetry; `format(data, ctx)`
-  renders that data as text and returns `string | string[]`. They are separate because one MCP
-  reply carries `content` (text) and `structuredContent` (JSON matching `outputSchema`) at once,
-  and both must come from a single run — re-running a method with side effects would repeat them.
-  The CLI's `--json` is "skip `format`". Multiple blocks exist because `preview-stories` renders one
-  text block per URL.
-- `reportUsage({ input, data, text }, ctx)` runs once after `format`, on every consumer, and exists
-  only for telemetry that describes the rendered answer — the docs events' `resultTokenCount`.
-  Telemetry that does not need the text belongs in `handler`. Adapters must call it rather than
-  reporting docs events themselves, or the CLI silently stops reporting them.
-- `ctx` is `{ consumer: 'cli' | 'mcp', origin?, getService, telemetry? }`. A method's
-  `description` may be a function of `ctx`, so agent-facing prose lives with the capability. Name
-  sibling tools through `getRef(ctx)` rather than hardcoding either spelling — it renders the frozen
-  MCP tool name or the CLI command per consumer.
+- A toolset has an `id`, a description, a `telemetryGroup` (`'dev' | 'test' | 'docs'` — stories
+  and review report under `dev`), and methods with four fields: `description`, `schema` (input),
+  optional `outputSchema`, and one `handler`.
+- `handler(input, ctx)` returns a `ToolsetOutcome<TSuccess, TFailure = TSuccess>`: a discriminated
+  union of `{ ok: true, data, markdown }` and `{ ok: false, data, markdown }`, written as plain
+  object literals (no factory helpers). The one handler owns data, side effects, telemetry, and the
+  rendered Markdown, because one MCP reply carries `content` (text) and `structuredContent` (JSON
+  matching `outputSchema`) at once and both must come from a single run — re-running a method with
+  side effects would repeat them. Usage telemetry reports inline in the handler with the rendered
+  text in hand, so no consumer can forget it. Declare `TFailure = never` for infallible methods.
+- The failure model, one line each: could not do the job → **throw**; did the job and the answer is
+  bad news (a failed test run, a not-found lookup) → **return `{ ok: false, data, markdown }`**.
+  Adapters unwrap mechanically — text blocks from `markdown`, `structuredContent` from `data`, MCP
+  `isError` (and later CLI exit codes) from `ok` — and must not re-derive meaning from the data.
+  `markdown` may be `string[]`: `preview-stories` renders one text block per URL; the CLI joins
+  with newlines.
+- An error whose message speaks to the agent and names its own recovery declares
+  `agentFacing: true` (a `StorybookError` constructor prop). Adapters surface such errors verbatim
+  by reading that property — never by keeping a class list, which misclassifies across bundle
+  copies.
+- The entry whose function throws a public error also exports that error class; catchers import
+  both from the same specifier so plain `instanceof` is correct by construction (each core entry
+  bundles its own copy of a class, so a class imported from a different entry is a different
+  constructor). `storybook/open-service` exports the registry's own errors for exactly this reason.
+- `ctx` is `{ consumer: 'cli' | 'mcp', origin?, uiRoot?, getService, telemetry? }`. `uiRoot` is
+  where the consumer's Storybook UI is reachable when that differs from `origin` (sub-path-hosted
+  dev server); methods that link into the UI prefer it, and the adapter derives it from the request.
+  A method's `description` may be a function of `ctx`, so agent-facing prose lives with the
+  capability. Name sibling tools through `getRef(ctx)` rather than hardcoding either spelling — it
+  renders the frozen MCP tool name or the CLI command per consumer.
 - Boot-time facts that vary prose (review enabled, a11y enabled) are factory options on the toolset,
   not ctx fields.
 - `MCP_TOOL_NAMES` / `MCP_TOOL_TITLES` (`open-service/toolset-names.ts`) are the frozen public MCP
@@ -149,6 +163,14 @@ AST indexing keeps the sidebar fast and prevents one broken story file from brea
   `storybook` as a devDependency and bundles it, so its published dependencies must stay free of
   `storybook`; `addon-mcp` no longer depends on `@storybook/mcp` at all. A composition builds its
   toolset per request, because the provider and sources belong to the request.
+- `toolsets-docs` is a **portable** entry (`portable: { external: [...] }` in
+  `code/core/build-config.ts`): its d.ts is bundled in an isolated single-entry pass into one flat
+  self-contained file whose only imports are the entry's declared allowlist (today exactly
+  `valibot`), so consumers inline it through standard resolution with no custom resolver. A
+  producer-side test next to the entry source (`portable-dist.test.ts`) asserts flatness, the
+  allowlist, and a size budget — an edit that entangles the entry with react or another core
+  surface fails core's own build. Its closure must not import core by bare name
+  (`storybook/...`); import from the defining module instead of a barrel that does.
 - Toolset factories are exported from `storybook/internal/core-server`, not `storybook/open-service`:
   they reach server-only code, and the latter entry is built for the browser.
 - Still open: CLI generation and `storybook tools` wiring (Milestone 5).

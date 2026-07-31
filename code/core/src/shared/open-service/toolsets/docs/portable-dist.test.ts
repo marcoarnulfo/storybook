@@ -1,0 +1,72 @@
+/**
+ * Guards the portable d.ts artifact of the `storybook/internal/toolsets-docs` entry.
+ *
+ * `@storybook/mcp` bundles this entry's declarations into its own dist through standard module
+ * resolution, so the artifact must be one flat self-contained file whose only external imports are
+ * on that package's own dependency list. An edit that entangles the entry with react, another core
+ * surface, or a shared type chunk must fail here — where the artifact is produced — with a message
+ * naming the offending import, not in a consumer's build.
+ *
+ * Deliberately reads the real built artifact (no memfs): the guarded property is what the build
+ * actually wrote to disk.
+ */
+
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+const DTS_ARTIFACT = join(
+  import.meta.dirname,
+  '../../../../../dist/shared/open-service/toolsets/docs/public.d.ts'
+);
+
+/** The only module specifiers the flat file may reference. */
+const IMPORT_ALLOWLIST = ['valibot'];
+
+/**
+ * Headroom over the current size (~64 KB), so ordinary edits pass but a bundling regression —
+ * the shared-chunk entanglement this pass exists to prevent pulled in ~904 KB — does not.
+ */
+const SIZE_BUDGET_BYTES = 100_000;
+
+/**
+ * Every syntactic position that references another module in a d.ts: static `from`, dynamic
+ * `import(...)` type references, `require(...)`, side-effect `import "..."`, and ambient
+ * `declare module "..."` augmentation.
+ */
+const MODULE_SPECIFIER_RE =
+  /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+|\bmodule\s+)["']([^"']+)["']/g;
+
+/**
+ * The dist-reading assertions are skipped on a working copy that has not been production-built,
+ * which would make them pass vacuously in CI — where a build always precedes the tests. So there,
+ * the artifact's absence is the failure.
+ */
+const DTS_BUILT = existsSync(DTS_ARTIFACT);
+
+describe('portable toolsets-docs declarations', () => {
+  it.runIf(process.env.CI)('are built before this suite runs', () => {
+    expect(DTS_BUILT).toBe(true);
+  });
+
+  it.runIf(DTS_BUILT)('are one flat file: no relative imports', () => {
+    const specifiers = [...readFileSync(DTS_ARTIFACT, 'utf-8').matchAll(MODULE_SPECIFIER_RE)].map(
+      (match) => match[1]
+    );
+
+    expect(specifiers.filter((specifier) => specifier.startsWith('.'))).toEqual([]);
+  });
+
+  it.runIf(DTS_BUILT)('import exactly the allowlist', () => {
+    const specifiers = [...readFileSync(DTS_ARTIFACT, 'utf-8').matchAll(MODULE_SPECIFIER_RE)].map(
+      (match) => match[1]
+    );
+
+    expect([...new Set(specifiers)].sort()).toEqual(IMPORT_ALLOWLIST);
+  });
+
+  it.runIf(DTS_BUILT)('stay within their size budget', () => {
+    expect(statSync(DTS_ARTIFACT).size).toBeLessThan(SIZE_BUDGET_BYTES);
+  });
+});
