@@ -374,7 +374,11 @@ describe('stories.findByComponent', () => {
     );
 
     expect(error).toBeInstanceOf(OpenServiceModuleGraphUnavailableError);
-    expect((error as Error).message).toContain('builder does not support change detection');
+    // The adapter hands this message straight to the agent, so it must name the remedy and not
+    // just the service's internal status text.
+    expect((error as Error).message).toBe(
+      "Storybook's story dependency graph is unavailable. Make sure the dev server is running with a builder that supports change detection."
+    );
   });
 
   it('reports how many of the requested components matched', async () => {

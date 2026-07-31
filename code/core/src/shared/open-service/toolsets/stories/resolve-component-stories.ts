@@ -133,7 +133,9 @@ function reasonForStatus(status: ModuleGraphStatus): string {
     case 'booting':
       return "Storybook's story module graph hasn't built yet — it is still being constructed. Retry shortly.";
     case 'unavailable':
-      return `Storybook's story module graph is unavailable: ${status.reason}`;
+      // Worded as the MCP tool worded it: the agent's next move is to check how the dev server
+      // runs, which the service's own status text does not say.
+      return "Storybook's story dependency graph is unavailable. Make sure the dev server is running with a builder that supports change detection.";
     case 'error':
       return `Storybook's story module graph failed to build: ${status.error.message}`;
     case 'ready':

@@ -305,7 +305,7 @@ describe('resolveComponentStories', () => {
     expect(res.reason).toMatch(/hasn't built yet/i);
   });
 
-  it('returns available:false with the service-provided reason when unavailable', async () => {
+  it('returns available:false with the remedy the agent needs when unavailable', async () => {
     const res = await resolveComponentStories(
       { componentPaths: [BADGE_ABS] },
       depsFor(
@@ -316,7 +316,10 @@ describe('resolveComponentStories', () => {
       )
     );
     expect(res.available).toBe(false);
-    expect(res.reason).toMatch(/does not support change detection/);
+    // Not the service's status text: the agent is told what to change, as the MCP tool always did.
+    expect(res.reason).toBe(
+      "Storybook's story dependency graph is unavailable. Make sure the dev server is running with a builder that supports change detection."
+    );
   });
 
   it('returns available:false with the serialized error message when the graph errored', async () => {
