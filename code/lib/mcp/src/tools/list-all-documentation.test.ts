@@ -233,6 +233,42 @@ describe('listAllDocumentationTool', () => {
       );
     });
 
+    it('should report every source flat, with its manifests directly on the entry', async () => {
+      manifestProvider = createManifestProvider({
+        local: { componentManifest: smallManifestFixture },
+        remote: { componentManifest: remoteManifest },
+      });
+
+      const handler = vi.fn();
+      const request = {
+        jsonrpc: '2.0' as const,
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: LIST_TOOL_NAME,
+          arguments: {},
+        },
+      };
+
+      const mockHttpRequest = new Request('https://example.com/mcp');
+      await server.receive(request, {
+        custom: {
+          request: mockHttpRequest,
+          manifestProvider,
+          sources,
+          onListAllDocumentation: handler,
+        },
+      });
+
+      // Exact shape, not objectContaining: embedders read `componentManifest` straight off each
+      // source entry, and the nested `manifests` shape this replaced must not silently return.
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler.mock.calls[0]![0].sources).toEqual([
+        { source: sources[0], componentManifest: smallManifestFixture },
+        { source: sources[1], componentManifest: remoteManifest },
+      ]);
+    });
+
     it('should show error for failed sources while displaying successful ones', async () => {
       manifestProvider = createManifestProvider({
         local: { componentManifest: smallManifestFixture },

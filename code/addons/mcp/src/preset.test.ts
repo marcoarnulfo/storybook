@@ -419,7 +419,7 @@ describe('experimental_devServer', () => {
   });
 
   it('should show Storybook version requirement for addon-vitest and a manual manifest link', async () => {
-    vi.spyOn(runStoryTests, 'getAddonVitestConstants').mockResolvedValue(undefined);
+    vi.spyOn(runStoryTests, 'isAddonVitestEnabled').mockResolvedValue(false);
     const manifestEnabledOptions = {
       presets: {
         apply: vi.fn((key: string) => {

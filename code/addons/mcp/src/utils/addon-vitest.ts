@@ -1,17 +1,18 @@
+import type { Options } from 'storybook/internal/types';
+
 /**
- * Probes whether `@storybook/addon-vitest` is installed.
+ * Whether `@storybook/addon-vitest` is enabled in this project.
  *
- * Its constants module is the cheapest thing to import that only resolves when the addon is
- * present, so a failed import is the signal that story tests are unavailable here.
+ * Reads the `isAddonVitestEnabled` marker that addon's preset exports, so this is true exactly
+ * when its presets loaded — the same condition under which its `services` hook registers the
+ * `test` toolset. Installed-but-not-enabled (a hoisted monorepo dependency, or an addon removed
+ * from `main.ts` without uninstalling) must read false: the toolset never registers there, so
+ * offering the tool would make every test call fail.
  */
-export async function getAddonVitestConstants() {
+export async function isAddonVitestEnabled(options: Options): Promise<boolean> {
   try {
-    const mod = await import('@storybook/addon-vitest/constants');
-    return {
-      TRIGGER_TEST_RUN_REQUEST: mod.TRIGGER_TEST_RUN_REQUEST,
-      TRIGGER_TEST_RUN_RESPONSE: mod.TRIGGER_TEST_RUN_RESPONSE,
-    };
+    return await options.presets.apply('isAddonVitestEnabled', false);
   } catch {
-    return undefined;
+    return false;
   }
 }

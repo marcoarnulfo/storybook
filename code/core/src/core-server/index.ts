@@ -62,7 +62,7 @@ export {
  * Toolset registration for addons that host a public toolset.
  *
  * Exposed from the Node entry rather than `storybook/open-service`: toolset factories reach
- * server-only code, and that entry is a manager global.
+ * server-only code, and that entry is built for the browser.
  */
 export { registerToolset } from '../shared/open-service/toolset-registry.ts';
 export { createTestToolset } from '../shared/open-service/toolsets/test/definition.ts';
@@ -75,6 +75,8 @@ export { emptyManifests } from '../shared/open-service/toolsets/docs/access.ts';
 export type { DocsAccess, ResolvedDocsEntry } from '../shared/open-service/toolsets/docs/access.ts';
 export { createServiceDocsAccess } from '../shared/open-service/toolsets/docs/access-service.ts';
 export { createManifestDocsAccess } from '../shared/open-service/toolsets/docs/access-manifest.ts';
+export { createLocalDocsAccess } from '../shared/open-service/toolsets/docs/access-local.ts';
+export { loadManifests } from './utils/manifests/manifests.ts';
 export { createStoriesToolset } from '../shared/open-service/toolsets/stories/definition.ts';
 export type { PreviewStoriesOutput } from '../shared/open-service/toolsets/stories/definition.ts';
 export { reviewToolset } from '../shared/open-service/toolsets/review/definition.ts';

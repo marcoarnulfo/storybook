@@ -1,5 +1,6 @@
 /**
- * Docs access backed by the live open services (`experimentalDocgenServer` mode).
+ * Docs access backed by the live open services (docgen-server mode, selected when the docgen
+ * services actually registered — see `createLocalDocsAccess`).
  *
  * Two properties make this different from reading the service aggregates directly. Visibility comes
  * from the story index, so the listing matches what core's manifest generator would emit — same

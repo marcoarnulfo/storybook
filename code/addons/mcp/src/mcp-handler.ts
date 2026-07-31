@@ -14,7 +14,6 @@ import {
   getEffectiveToolAvailability,
   getToolAvailability,
 } from './utils/get-tool-availability.ts';
-import { estimateTokens } from 'storybook/internal/toolsets-docs';
 import type { CompositionAuth } from './auth/index.ts';
 import { buildServerInstructions } from './instructions/build-server-instructions.ts';
 import { DEFAULT_MCP_ENDPOINT, STORYBOOK_MCP_PROXY_HEADER } from './constants.ts';
@@ -142,7 +141,7 @@ export const mcpServerHandler = async ({
       sources?.some((s) => s.url)
     );
   }
-  const server = await initialize;
+  await initialize;
 
   // Convert Node.js request to Web API Request
   const webRequest = await incomingMessageToWebRequest(req);

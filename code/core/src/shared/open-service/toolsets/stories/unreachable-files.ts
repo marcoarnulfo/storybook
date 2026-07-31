@@ -1,3 +1,5 @@
+import { logger } from 'storybook/internal/node-logger';
+
 import { resolve as resolvePath } from 'pathe';
 
 import type { ModuleGraphService } from '../../services/module-graph/definition.ts';
@@ -36,7 +38,17 @@ export async function detectUnreachableFiles({
     return [];
   }
 
-  const [changedFiles, repoRoot] = await Promise.all([git.getChangedFiles(), git.getRepoRoot()]);
+  let changedFiles: Awaited<ReturnType<StoriesGitAccess['getChangedFiles']>>;
+  let repoRoot: string;
+  try {
+    [changedFiles, repoRoot] = await Promise.all([git.getChangedFiles(), git.getRepoRoot()]);
+  } catch (error) {
+    // Not a git repository, or git itself is unusable. Change detection legitimately answers
+    // "no changes detected" here — the pre-toolset tool degraded the same way — so the failure
+    // must not turn the whole tool into an error for the agent.
+    logger.debug(`Unreachable-file detection skipped, git is unavailable: ${error}`);
+    return [];
+  }
   const relativeFiles = [...new Set([...changedFiles.changed, ...changedFiles.new])].filter(
     (file) => SOURCE_EXT_RE.test(file)
   );

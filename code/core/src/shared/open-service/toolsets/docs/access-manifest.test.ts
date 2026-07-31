@@ -81,6 +81,13 @@ describe('createManifestDocsAccess resolve', () => {
     await expect(createAccess().resolve('nope')).resolves.toBeUndefined();
   });
 
+  it.each(['constructor', 'toString', 'hasOwnProperty'])(
+    'answers absence for the prototype member %s instead of rendering it',
+    async (id) => {
+      await expect(createAccess().resolve(id)).resolves.toBeUndefined();
+    }
+  );
+
   it('reloads the manifests on every call so edits are picked up', async () => {
     const getManifests = vi.fn(async () => inlineManifests);
     const access = createManifestDocsAccess({ getManifests });

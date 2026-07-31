@@ -107,9 +107,10 @@ function fromToolset(
   return {
     ...rest,
     // Read from the constant, not the registry: this array is built at import time, while toolsets
-    // register later from their preset hooks. Availability deliberately does NOT consult the
-    // registry — a missing toolset must fail loudly at resolution (getToolset throws), not silently
-    // drop a tool from the list.
+    // register later from their preset hooks. Each availability gate is written to match the
+    // condition under which its toolset registers; if they still disagree, resolution fails loudly
+    // (getToolset throws) and the registry drops that one row with an error log rather than taking
+    // down the whole server (see resolveDefinitionOrDrop).
     name: MCP_TOOL_NAMES[options.method],
     available: (context) => available?.(context) ?? true,
     getMetadata: () => getToolsetToolMetadata(options),
@@ -212,6 +213,7 @@ const addonToolDefinitions: AddonToolDefinition[] = [
     register: (server, { availability, toolsets }, enabled) =>
       addGetUIBuildingInstructionsTool(server, enabled, {
         docsAvailable: isToolsetEnabled('docs', toolsets) && availability.docsEnabled,
+        addonVitestAvailable: availability.testSupported,
       }),
     getLocalTool: ({ availability, toolsets, options }) => ({
       call: async () => {
@@ -257,17 +259,52 @@ const addonToolDefinitions: AddonToolDefinition[] = [
   fromToolset({
     toolset: 'test',
     available: ({ availability }) => availability.testSupported,
-    options: { method: 'test.run', telemetryToolset: 'test' },
+    options: {
+      method: 'test.run',
+      telemetryToolset: 'test',
+      // Failed and cancelled runs report through data (the old tool threw); the flag must come
+      // back or clients keying on `isError` count a crashed vitest run as a pass.
+      resultIsError: (data) => {
+        const status = (data as { status?: string }).status;
+        return status === 'error' || status === 'cancelled';
+      },
+    },
   }),
   // Docs run on the core docs toolset in both modes. A composition builds its toolset per request,
   // because the sources it reads and the provider that fetches them belong to the request.
   ...docsToolDefinitions,
 ];
 
+/**
+ * Contains a broken tool row to that row.
+ *
+ * An availability gate saying yes while the backing toolset never registered is a wiring bug
+ * (each gate is written to match its toolset's registration condition), but it must cost the
+ * user one tool, not the whole MCP server or the `storybook ai` metadata build. The error log
+ * keeps the mismatch loud; everything else about `getToolset` stays fail-fast.
+ */
+function logDroppedToolRow(name: string, error: unknown): undefined {
+  logger.error(`Skipping MCP tool "${name}", its backing toolset failed to resolve: ${error}`);
+  return undefined;
+}
+
+function resolveDefinitionOrDrop<T>(name: string, resolve: () => T): T | undefined {
+  try {
+    return resolve();
+  } catch (error) {
+    return logDroppedToolRow(name, error);
+  }
+}
+
 export function getAddonToolMetadata(context: AddonToolRegistryContext): ToolMetadata[] {
   return addonToolDefinitions
     .filter((definition) => isMetadataToolEnabled(definition, context))
-    .map((definition) => definition.getMetadata(context));
+    .flatMap((definition) => {
+      const metadata = resolveDefinitionOrDrop(definition.name, () =>
+        definition.getMetadata(context)
+      );
+      return metadata ? [metadata] : [];
+    });
 }
 
 export function getAddonLocalTools(
@@ -277,7 +314,9 @@ export function getAddonLocalTools(
     addonToolDefinitions
       .filter((definition) => isMetadataToolEnabled(definition, context))
       .flatMap((definition) => {
-        const localTool = definition.getLocalTool?.(context);
+        const localTool = resolveDefinitionOrDrop(definition.name, () =>
+          definition.getLocalTool?.(context)
+        );
         return localTool ? [[definition.name, localTool]] : [];
       })
   );
@@ -296,7 +335,15 @@ export async function registerAddonMcpTools(
       isToolsetEnabled(definition.toolset, context.toolsets) &&
       isToolAvailable(definition, context)
     ) {
-      await definition.register(server, context, createToolsetEnabled(server, definition.toolset));
+      try {
+        await definition.register(
+          server,
+          context,
+          createToolsetEnabled(server, definition.toolset)
+        );
+      } catch (error) {
+        logDroppedToolRow(definition.name, error);
+      }
     }
   }
 }

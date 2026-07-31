@@ -23,7 +23,8 @@ const EMPTY_INDEX: StoryIndex = { v: 5, entries: {} };
 export function registerCoreToolsetsForTest({
   index = EMPTY_INDEX,
   reviewEnabled = true,
-}: { index?: StoryIndex; reviewEnabled?: boolean } = {}) {
+  testToolset = true,
+}: { index?: StoryIndex; reviewEnabled?: boolean; testToolset?: boolean } = {}) {
   clearToolsetRegistry();
 
   const storyIndex = { getIndex: async () => index };
@@ -40,13 +41,17 @@ export function registerCoreToolsetsForTest({
     })
   );
   registerToolset(reviewToolset);
-  registerToolset(
-    createTestToolset({
-      channel: { on: () => {}, off: () => {}, emit: () => {} } as never,
-      storyIndex,
-      a11yEnabled: false,
-    })
-  );
+  // `testToolset: false` mirrors addon-vitest being absent or not enabled, where its `services`
+  // hook never runs and the `test` toolset stays unregistered.
+  if (testToolset) {
+    registerToolset(
+      createTestToolset({
+        channel: { on: () => {}, off: () => {}, emit: () => {} } as never,
+        storyIndex,
+        a11yEnabled: false,
+      })
+    );
+  }
   registerToolset(
     createDocsToolset({
       docsAccess: { list: async () => emptyManifests(), resolve: async () => undefined },

@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { basename, dirname, join, relative } from 'pathe';
 import picocolors from 'picocolors';
@@ -78,6 +79,66 @@ function createTextAssetStubPlugin(): Plugin {
         return 'declare const content: string;\nexport default content;\n';
       }
       return null;
+    },
+  };
+}
+
+/**
+ * Resolves bundled `storybook` type imports into this build's own per-file declaration emit.
+ *
+ * A package that bundles `storybook` (a devDependency, deliberately not external — today only
+ * `@storybook/mcp`) must not bundle its types from core's shipped dist declarations: those are
+ * chunked across entries, so one imported symbol drags whole unrelated surfaces (emotion theming,
+ * testing-library, icons) into the output — a 196 KB `index.d.ts` importing `react` for a
+ * pure-Node package. Instead, the declaration emit for such packages also covers core's sources
+ * (see `bundlesStorybook` below), and this resolver maps each `storybook/*` specifier through the
+ * `code` condition of core's export map into that per-file emit, where tree-shaking works.
+ * TypeScript's own resolution cannot be used here: its `types` condition always precedes custom
+ * conditions, so it would land back on the chunked dist declarations.
+ */
+function createBundledStorybookTypesResolverPlugin(
+  cwd: string,
+  emitDir: string,
+  isExternal: (id: string) => boolean
+): Plugin {
+  let exportEntries: Record<string, { code?: string } | string> | undefined;
+  let packageDir: string | undefined;
+
+  const resolveThroughCodeCondition = (id: string): string | undefined => {
+    if (exportEntries === undefined) {
+      const require = createRequire(join(cwd, 'package.json'));
+      const packageJsonPath = ts.sys.realpath!(require.resolve('storybook/package.json'));
+      packageDir = dirname(packageJsonPath);
+      exportEntries = JSON.parse(ts.sys.readFile(packageJsonPath) ?? '{}').exports ?? {};
+    }
+    const subpath = id === 'storybook' ? '.' : `./${id.slice('storybook/'.length)}`;
+    const entry = exportEntries![subpath];
+    const codePath = typeof entry === 'object' ? entry?.code : undefined;
+    if (!codePath) {
+      return undefined;
+    }
+    const emitted = join(emitDir, relative(DIR_ROOT, join(packageDir!, codePath))).replace(
+      /\.tsx?$/,
+      '.d.ts'
+    );
+    return ts.sys.fileExists(emitted) ? emitted : undefined;
+  };
+
+  const cache = new Map<string, string | undefined>();
+
+  return {
+    name: 'storybook:dts-bundled-storybook-resolver',
+    resolveId: {
+      order: 'pre',
+      handler(id, importer) {
+        if ((id !== 'storybook' && !id.startsWith('storybook/')) || !importer || isExternal(id)) {
+          return undefined;
+        }
+        if (!cache.has(id)) {
+          cache.set(id, resolveThroughCodeCondition(id));
+        }
+        return cache.get(id);
+      },
     },
   };
 }
@@ -304,6 +365,25 @@ export async function generateTypesFiles(
   const useTsgo = options?.tsgo ?? false;
   const resolver = options?.resolver ?? 'hybrid';
 
+  // A package that bundles `storybook` (a devDependency, so deliberately not external) needs
+  // core's per-file declarations in its own emit, so its `storybook/*` type imports can be
+  // bundled tree-shakeably instead of from core's chunked dist declarations (see
+  // createBundledStorybookTypesResolverPlugin).
+  const { default: packageJson } = await import(
+    pathToFileURL(join(cwd, 'package.json')).href,
+    { with: { type: 'json' } }
+  );
+  const bundlesStorybook =
+    'storybook' in (packageJson.devDependencies ?? {}) && !externalFn('storybook');
+  const include = [
+    `${relative(DIR_ROOT, cwd)}/src/**/*`,
+    ...(bundlesStorybook ? ['code/core/src/**/*'] : []),
+  ];
+  // Root-collection filter only: files a bundled entry actually imports re-enter the program
+  // transitively and are still emitted. Keeping the manager UI out of the roots avoids its
+  // advisory TS4023 emit diagnostics in packages that only bundle Node-side entries.
+  const exclude = [...DTS_EXCLUDES, ...(bundlesStorybook ? ['code/core/src/manager/**'] : [])];
+
   // tsgo removed support for `baseUrl`, and ts.getParsedCommandLineOfConfigFile
   // needs concrete options anyway: resolve the tsconfig chain and write a flat
   // config.
@@ -313,8 +393,8 @@ export async function generateTypesFiles(
     wrapperTsconfig,
     JSON.stringify({
       compilerOptions,
-      include: [`${relative(DIR_ROOT, cwd)}/src/**/*`],
-      exclude: DTS_EXCLUDES,
+      include,
+      exclude,
     })
   );
 
@@ -332,8 +412,8 @@ export async function generateTypesFiles(
         emitTsconfig,
         JSON.stringify({
           compilerOptions: { ...compilerOptions, ...dtsEmitCompilerOptions(emitDir) },
-          include: [`${relative(DIR_ROOT, cwd)}/src/**/*`],
-          exclude: DTS_EXCLUDES,
+          include,
+          exclude,
         })
       );
       emitPackageDeclarationsNative(emitTsconfig, wrapperTsconfig, emitDir);
@@ -353,6 +433,9 @@ export async function generateTypesFiles(
       external: externalFn,
       plugins: [
         createTextAssetStubPlugin(),
+        ...(bundlesStorybook
+          ? [createBundledStorybookTypesResolverPlugin(cwd, emitDir, externalFn)]
+          : []),
         ...(resolver === 'hybrid' ? [createTypesFallbackResolverPlugin(externalFn)] : []),
         dts({
           cwd,

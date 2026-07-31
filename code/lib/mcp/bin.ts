@@ -26,7 +26,6 @@ import type { StorybookContext } from './src/types.ts';
 import { parseArgs } from 'node:util';
 import * as fs from 'node:fs/promises';
 import { resolve, dirname, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 function resolveManifestFile(base: string, rel: string): string {
   const resolvedBase = resolve(base);

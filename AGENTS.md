@@ -128,17 +128,21 @@ AST indexing keeps the sidebar fast and prevents one broken story file from brea
   gates registration must match the gate that decides whether the tool is offered.
 - The docs toolset is runtime-agnostic behind an injected `DocsAccess` (`list` + `resolve`), so one
   definition serves every runtime. Three accesses implement it — there is deliberately no fourth:
-  `createServiceDocsAccess` (open
-  services, when `experimentalDocgenServer` is on), `createManifestDocsAccess` (the manifests core
+  `createServiceDocsAccess` (the open services), `createManifestDocsAccess` (the manifests core
   builds, the default) and `createProviderDocsAccess` (manifest files over any provider — HTTP, a
-  static bundle, an authenticated proxy — following `$ref`s and validating on arrival). A test
-  asserts the toolset never reaches `core-server`; keep it that way.
+  static bundle, an authenticated proxy — following `$ref`s and validating on arrival). Which of
+  the first two serves the local Storybook is decided by *registration*, not the
+  `experimentalDocgenServer` flag: `createLocalDocsAccess` picks the services only when the docgen
+  service actually registered (the flag alone is not enough — manager-only builds and a missing
+  docgen worker skip that registration), and core's docs toolset and addon-mcp's composed local
+  source share that selector. A test asserts the toolset never reaches `core-server`; keep it that
+  way.
 - Composition is access *composition*, not a second implementation: `createCompositionDocsSources`
   builds one access per source and `createDocsToolset({ sources })` adds the `storybookId` input,
   groups the listing per source, and isolates a failing source — unless every source fails, which
   is reported as one error instead of a page of them. Its `localAccess` option reads the source with
   no `url` directly, which is how the dev server reads itself the same way composed as it does
-  alone; addon-mcp passes `createServiceDocsAccess` there in docgen-server mode rather than owning a
+  alone; addon-mcp passes `createLocalDocsAccess` there in docgen-server mode rather than owning a
   second engine.
 - `@storybook/mcp` and `@storybook/addon-mcp` both register their docs tools from that toolset
   through the dependency-light `storybook/internal/toolsets-docs` entry. `@storybook/mcp` takes
@@ -146,7 +150,7 @@ AST indexing keeps the sidebar fast and prevents one broken story file from brea
   `storybook`; `addon-mcp` no longer depends on `@storybook/mcp` at all. A composition builds its
   toolset per request, because the provider and sources belong to the request.
 - Toolset factories are exported from `storybook/internal/core-server`, not `storybook/open-service`:
-  they reach server-only code, and the latter entry is a manager global.
+  they reach server-only code, and the latter entry is built for the browser.
 - Still open: CLI generation and `storybook tools` wiring (Milestone 5).
 
 ## Common Commands

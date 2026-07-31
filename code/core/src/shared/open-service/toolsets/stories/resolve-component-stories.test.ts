@@ -316,9 +316,9 @@ describe('resolveComponentStories', () => {
       )
     );
     expect(res.available).toBe(false);
-    // Not the service's status text: the agent is told what to change, as the MCP tool always did.
+    // The service's cause plus the remedy: the agent is told what failed and what to change.
     expect(res.reason).toBe(
-      "Storybook's story dependency graph is unavailable. Make sure the dev server is running with a builder that supports change detection."
+      "Storybook's story dependency graph is unavailable: builder does not support change detection. Make sure the dev server is running with a builder that supports change detection."
     );
   });
 

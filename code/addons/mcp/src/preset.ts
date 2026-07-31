@@ -14,7 +14,7 @@ import { logger } from 'storybook/internal/node-logger';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { DEFAULT_MCP_ENDPOINT } from './constants.ts';
 import { buildStorybookAiMetadata, type StorybookAiMetadata } from './storybook-ai-metadata.ts';
-import { createServiceDocsAccess, getService } from 'storybook/internal/core-server';
+import { createLocalDocsAccess, loadManifests } from 'storybook/internal/core-server';
 import { getStoryIndex } from './utils/get-story-index.ts';
 
 export const previewAnnotations: PresetPropertyFn<'previewAnnotations'> = async (
@@ -42,14 +42,15 @@ export const experimental_devServer: PresetPropertyFn<
 
   // Composition (multi-source) is the only remaining consumer of the manifest-provider plumbing:
   // single-source docs tools read the registered docs toolset instead. In docgen-server mode core
-  // 404s the local `/manifests/*.json`, so the local source reads the open services through the
-  // same access the dev server uses when it is not composed.
+  // 404s the local `/manifests/*.json`, so the local source reads this Storybook in-process
+  // through the same registration-based access selection the dev server uses when it is not
+  // composed — the docgen services when they actually registered, the inline manifests otherwise.
   const rawAvailability = await getToolAvailability(options);
   const localAccess =
     rawAvailability.docgenServer && refs.length > 0
-      ? createServiceDocsAccess({
+      ? createLocalDocsAccess({
           storyIndex: { getIndex: () => getStoryIndex(options) },
-          getService,
+          getManifests: () => loadManifests(options.presets),
         })
       : undefined;
 

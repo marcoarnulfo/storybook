@@ -235,6 +235,19 @@ describe('stories.changed', () => {
     expect(cliCtx.getService).toHaveBeenCalledWith('core/module-graph', { internal: true });
   });
 
+  it('degrades to "no changes detected" when git is unusable, as the pre-toolset tool did', async () => {
+    getChangedFiles.mockRejectedValue(new Error('not a git repository'));
+    getRepoRoot.mockRejectedValue(new Error('not a git repository'));
+
+    const data = await runChanged(mcpCtx);
+
+    expect(data.stories).toEqual([]);
+    expect(data.unreachableFiles).toEqual([]);
+    expect(toolset.methods.changed.format(data, mcpCtx)).toBe(
+      'No new, modified, or related stories detected.'
+    );
+  });
+
   it('anchors Git-relative paths at the repository root, not the Storybook working directory', async () => {
     await runChanged();
 
@@ -374,10 +387,10 @@ describe('stories.findByComponent', () => {
     );
 
     expect(error).toBeInstanceOf(OpenServiceModuleGraphUnavailableError);
-    // The adapter hands this message straight to the agent, so it must name the remedy and not
-    // just the service's internal status text.
+    // The adapter hands this message straight to the agent, so it must name both the
+    // adapter-specific cause the service reported and the remedy that cause does not say.
     expect((error as Error).message).toBe(
-      "Storybook's story dependency graph is unavailable. Make sure the dev server is running with a builder that supports change detection."
+      "Storybook's story dependency graph is unavailable: builder does not support change detection. Make sure the dev server is running with a builder that supports change detection."
     );
   });
 

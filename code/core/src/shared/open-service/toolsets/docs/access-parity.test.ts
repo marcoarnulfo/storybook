@@ -1,8 +1,9 @@
 /**
  * Cross-mode parity for the docs tools.
  *
- * `experimentalDocgenServer` decides which access the docs toolset runs on, and the two build their
- * answers from completely different sources — the open services versus the manifests core builds.
+ * Whether the docgen services registered decides which access the docs toolset runs on (see
+ * `createLocalDocsAccess`), and the two build their answers from completely different sources —
+ * the open services versus the manifests core builds.
  * Agents must not be able to tell which one served them, so the same project expressed both ways
  * has to render the same text. This is the only mechanical comparison of the two modes; the e2e
  * suite exercises the default mode only.

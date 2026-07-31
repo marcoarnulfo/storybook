@@ -99,14 +99,18 @@ export function createManifestDocsAccess({ getManifests }: ManifestDocsAccessOpt
       // Cast: these manifests are inline, so a row is already the resolved shape. A shallow row
       // could only appear in docgen-server mode, which `createServiceDocsAccess` serves instead;
       // if one did, its `$ref`s would simply not render, as before.
-      const component = toComponentManifest(raw.components)?.components[id] as
-        | ComponentManifest
-        | undefined;
+      // Own-property guards: a prototype member like `constructor` must answer "not found".
+      const components = toComponentManifest(raw.components)?.components;
+      const component =
+        components && Object.hasOwn(components, id)
+          ? (components[id] as ComponentManifest | undefined)
+          : undefined;
       if (component) {
         return { kind: 'component', component };
       }
 
-      const doc = toDocsManifest(raw.docs)?.docs[id];
+      const docs = toDocsManifest(raw.docs)?.docs;
+      const doc = docs && Object.hasOwn(docs, id) ? docs[id] : undefined;
       if (doc) {
         return { kind: 'doc', doc };
       }

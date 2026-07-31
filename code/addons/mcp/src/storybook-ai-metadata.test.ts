@@ -4,7 +4,7 @@ import { McpServer } from 'tmcp';
 import { ValibotJsonSchemaAdapter } from '@tmcp/adapter-valibot';
 import { logger } from 'storybook/internal/node-logger';
 import { buildStorybookAiMetadata } from './storybook-ai-metadata.ts';
-import { getAddonVitestConstants } from './utils/addon-vitest.ts';
+import { isAddonVitestEnabled } from './utils/addon-vitest.ts';
 import type { AddonContext } from './types.ts';
 import { getManifestStatus } from './tools/is-manifest-available.ts';
 import { isAddonA11yEnabled } from './utils/is-addon-a11y-enabled.ts';
@@ -62,10 +62,7 @@ describe('buildStorybookAiMetadata', () => {
       hasFeatureFlag: true,
       docgenServer: false,
     });
-    vi.mocked(getAddonVitestConstants).mockResolvedValue({
-      TRIGGER_TEST_RUN_REQUEST: 'TRIGGER_TEST_RUN_REQUEST',
-      TRIGGER_TEST_RUN_RESPONSE: 'TRIGGER_TEST_RUN_RESPONSE',
-    });
+    vi.mocked(isAddonVitestEnabled).mockResolvedValue(true);
     vi.mocked(isAddonA11yEnabled).mockResolvedValue(true);
   });
 
@@ -155,7 +152,7 @@ describe('buildStorybookAiMetadata', () => {
   });
 
   it('keeps addon-vitest availability aligned between metadata and live tools/list', async () => {
-    vi.mocked(getAddonVitestConstants).mockResolvedValue(undefined);
+    vi.mocked(isAddonVitestEnabled).mockResolvedValue(false);
     const options = createOptions();
 
     const metadata = await buildStorybookAiMetadata(options);

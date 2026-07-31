@@ -32,6 +32,17 @@ function providerWithBrokenStoryRefs() {
   };
 }
 
+describe('resolving hostile ids', () => {
+  it.each(['constructor', 'toString', 'hasOwnProperty'])(
+    'answers absence for the prototype member %s instead of rendering it',
+    async (id) => {
+      const access = createProviderDocsAccess({ manifestProvider: providerWithBrokenStoryRefs() });
+
+      await expect(access.resolve(id)).resolves.toBeUndefined();
+    }
+  );
+});
+
 describe('expanding story refs', () => {
   it('keeps a composed source listed when its story refs fail', async () => {
     const access = createProviderDocsAccess({

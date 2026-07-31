@@ -37,10 +37,8 @@ import { createDocgenWorkerClient } from '../../shared/open-service/services/doc
 import { registerModuleGraphService } from '../../shared/open-service/services/module-graph/server.ts';
 import { registerReviewService } from '../../shared/open-service/services/review/server.ts';
 import { registerStoryDocsService } from '../../shared/open-service/services/story-docs/server.ts';
-import { getService } from '../../shared/open-service/server.ts';
+import { createLocalDocsAccess } from '../../shared/open-service/toolsets/docs/access-local.ts';
 import { registerToolset } from '../../shared/open-service/toolset-registry.ts';
-import { createManifestDocsAccess } from '../../shared/open-service/toolsets/docs/access-manifest.ts';
-import { createServiceDocsAccess } from '../../shared/open-service/toolsets/docs/access-service.ts';
 import { createDocsToolset } from '../../shared/open-service/toolsets/docs/definition.ts';
 import { reviewToolset } from '../../shared/open-service/toolsets/review/definition.ts';
 import { createStoriesToolset } from '../../shared/open-service/toolsets/stories/definition.ts';
@@ -399,11 +397,6 @@ export const services = async (_value: void, options: Options): Promise<void> =>
     registerToolset(reviewToolset);
   }
 
-  // Tracks whether the docs services below actually came up, so the docs toolset can pick an
-  // access it can serve from. The flag alone is not enough: the registrations are skipped for
-  // manager-only builds and when no docgen worker is available.
-  let docgenServicesRegistered = false;
-
   // Skip when previewing is off — the docgen service's staticInputs depends on the story index,
   // so registering it would force full story-index generation during manager-only builds (and
   // produce docgen files that wouldn't be served anywhere). Mirrors the !options.ignorePreview
@@ -431,7 +424,6 @@ export const services = async (_value: void, options: Options): Promise<void> =>
         docgenProvider: (input) => docgenWorker.extract(input.entry),
         workingDir: process.cwd(),
       });
-      docgenServicesRegistered = true;
     }
 
     registerStoryDocsService({
@@ -443,12 +435,12 @@ export const services = async (_value: void, options: Options): Promise<void> =>
 
   registerToolset(
     createDocsToolset({
-      // Docgen-server mode moves docs data out of the served manifests and into the open services,
-      // so the toolset reads whichever one this Storybook actually populates — the services when
-      // they came up, and otherwise the manifests, which every mode still writes.
-      docsAccess: docgenServicesRegistered
-        ? createServiceDocsAccess({ storyIndex, getService })
-        : createManifestDocsAccess({ getManifests: () => loadManifests(options.presets) }),
+      // Registration-based selection between the docgen services and the inline manifests, shared
+      // with addon-mcp's composed local source so both read this Storybook the same way.
+      docsAccess: createLocalDocsAccess({
+        storyIndex,
+        getManifests: () => loadManifests(options.presets),
+      }),
     })
   );
 };

@@ -45,6 +45,9 @@ import { runTestRunner } from './node/boot-test-runner.ts';
 import type { CachedState, ErrorLike, StoreState } from './types.ts';
 import type { StoreEvent } from './types.ts';
 
+// using await presets.apply('isAddonVitestEnabled', false);
+export const isAddonVitestEnabled = true;
+
 type Event =
   | {
       type: 'test-discrepancy';
@@ -69,8 +72,9 @@ type Event =
  * ai` metadata generation (which never starts a dev server) and a non-Vite dev server (where the
  * channel hook returns early) — would otherwise ask for a toolset that was never registered and
  * fail hard. Registering here matches the availability gate that decides whether the tool is
- * offered at all, which likewise only checks that this addon is installed. The channel is used
- * only when a run is actually triggered.
+ * offered at all: that gate reads the `isAddonVitestEnabled` marker this preset exports, which is
+ * true exactly when the addon is enabled — the same condition under which this hook runs. The
+ * channel is used only when a run is actually triggered.
  */
 export const services = async (_value: void, options: Options): Promise<void> => {
   const storyIndexGenerator =

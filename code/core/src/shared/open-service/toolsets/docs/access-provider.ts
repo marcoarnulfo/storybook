@@ -474,9 +474,10 @@ export function createProviderDocsAccess({
         source
       );
 
-      const componentEntry = (
-        componentManifest.components as Record<string, ComponentManifestEntry>
-      )[id];
+      // Own-property guards: ids come straight from the agent, and a prototype member like
+      // `constructor` must answer "not found" rather than render as a component.
+      const components = componentManifest.components as Record<string, ComponentManifestEntry>;
+      const componentEntry = Object.hasOwn(components, id) ? components[id] : undefined;
       if (componentEntry) {
         return {
           kind: 'component',
@@ -489,7 +490,8 @@ export function createProviderDocsAccess({
         };
       }
 
-      const docEntry = (docsManifest?.docs as Record<string, DocEntry> | undefined)?.[id];
+      const docs = docsManifest?.docs as Record<string, DocEntry> | undefined;
+      const docEntry = docs && Object.hasOwn(docs, id) ? docs[id] : undefined;
       if (docEntry) {
         return {
           kind: 'doc',
