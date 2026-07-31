@@ -27,6 +27,13 @@ export type ToolsetCtx = {
   consumer: ToolsetConsumer;
   /** Storybook server origin. Absent when running from a CLI without a live Storybook. */
   origin?: string;
+  /**
+   * Where this consumer's Storybook UI is reachable, when that differs from `origin` — a
+   * sub-path-hosted dev server answers MCP at `<root><endpoint>` while its UI lives at `<root>`.
+   * Methods that link into the UI prefer this over `origin`; the adapter derives it from the
+   * request it is serving.
+   */
+  uiRoot?: string;
   getService: ToolsetGetService;
   telemetry?: ToolsetTelemetry;
 };
@@ -91,12 +98,19 @@ export type ToolsetMethod<
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ToolsetMethods = Record<string, ToolsetMethod<any, AnyToolsetOutcome>>;
 
+/**
+ * Which surface group a toolset's telemetry reports under. Part of the definition — not adapter
+ * wiring — so the grouping cannot drift between consumers. Stories and review report under `dev`.
+ */
+export type ToolsetTelemetryGroup = 'dev' | 'test' | 'docs';
+
 export type ToolsetDefinition<
   TId extends string = string,
   TMethods extends ToolsetMethods = ToolsetMethods,
 > = {
   id: TId;
   description: string;
+  telemetryGroup: ToolsetTelemetryGroup;
   methods: TMethods;
 };
 
@@ -122,6 +136,7 @@ export function defineToolset<
 >(definition: {
   id: TId;
   description: string;
+  telemetryGroup: ToolsetTelemetryGroup;
   methods: TMethods & MethodContracts<TMethods>;
 }): ToolsetDefinition<TId, TMethods> {
   return definition;

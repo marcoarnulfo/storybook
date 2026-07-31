@@ -390,8 +390,9 @@ export class OpenServiceDuplicateToolsetError extends StorybookError {
  * The story module graph cannot answer a query right now (still building, unsupported builder, or
  * a build failure).
  *
- * Its `message` is written for the agent that triggered the lookup and names the recovery, so
- * adapters surface it verbatim rather than wrapping it as an unexpected failure.
+ * Its `message` is written for the agent that triggered the lookup and names the recovery, which
+ * is what `agentFacing` declares: adapters surface it verbatim rather than wrapping it as an
+ * unexpected failure.
  */
 export class OpenServiceModuleGraphUnavailableError extends StorybookError {
   constructor(public data: { reason: string }) {
@@ -400,6 +401,7 @@ export class OpenServiceModuleGraphUnavailableError extends StorybookError {
       category: Category.CORE_COMMON,
       code: 25,
       message: data.reason,
+      agentFacing: true,
     });
   }
 }

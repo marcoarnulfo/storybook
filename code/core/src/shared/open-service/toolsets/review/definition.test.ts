@@ -85,6 +85,15 @@ describe('review.create', () => {
     expect(outcome.data).toMatchObject({ reviewUrl });
   });
 
+  it('prefers the request-derived uiRoot over the origin for the review link', async () => {
+    // A sub-path-hosted Storybook answers MCP under its root; the review page lives there too.
+    const outcome = await createReview({}, { ...cliCtx, uiRoot: 'http://localhost:6006/nested' });
+
+    expect(outcome.data).toMatchObject({
+      reviewUrl: 'http://localhost:6006/nested/?path=/review/',
+    });
+  });
+
   it('rejects when the adapter has no Storybook origin to link to', async () => {
     await expect(createReview({}, { ...cliCtx, origin: undefined })).rejects.toBeInstanceOf(
       OpenServiceMissingOriginError

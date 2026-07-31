@@ -199,6 +199,7 @@ export function createTestToolset({ channel, storyIndex, a11yEnabled }: CreateTe
   return defineToolset({
     id: 'test',
     description: 'Run Storybook story tests via addon-vitest.',
+    telemetryGroup: 'test',
     methods: {
       run: {
         schema: runInputSchema,

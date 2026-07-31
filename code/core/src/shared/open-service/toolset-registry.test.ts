@@ -18,6 +18,7 @@ const makeToolset = (id: string, description = `${id} toolset`) =>
   defineToolset({
     id,
     description,
+    telemetryGroup: 'dev',
     methods: {
       noop: {
         description: 'No-op method.',

@@ -223,6 +223,7 @@ export function createDocsToolset(options: CreateDocsToolsetOptions) {
   return defineToolset({
     id: 'docs',
     description: 'Storybook component and docs documentation.',
+    telemetryGroup: 'docs',
     methods: {
       list: {
         schema: v.object({

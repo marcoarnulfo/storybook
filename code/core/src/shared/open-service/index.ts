@@ -20,6 +20,7 @@ export type {
   ToolsetMethodDescription,
   ToolsetOutcome,
   ToolsetTelemetry,
+  ToolsetTelemetryGroup,
 } from './toolset-definition.ts';
 export { getRef, MCP_TOOL_NAMES, MCP_TOOL_TITLES } from './toolset-names.ts';
 export type { ToolsetMethodRef } from './toolset-names.ts';

@@ -3,8 +3,8 @@ import { DEFAULT_MCP_ENDPOINT } from '../constants.ts';
 /**
  * Derives the Storybook root from the MCP request path.
  *
- * A Storybook served under a sub-path answers MCP at `<root><endpoint>`, so the review link has to
- * be built from the request's own path rather than the bare origin.
+ * A Storybook served under a sub-path answers MCP at `<root><endpoint>`, so links into the UI have
+ * to be built from the request's own path rather than the bare origin.
  */
 function storybookRootFromRequest(
   request: Request | undefined,
@@ -27,8 +27,12 @@ function storybookRootFromRequest(
   }
 }
 
-/** Origin the review toolset should build its page URL from. */
-export function resolveReviewOrigin(context: {
+/**
+ * Where this request's Storybook UI is reachable — the `uiRoot` context fact. The HTTP request
+ * parsing lives here in the adapter; which methods prefer it over `origin` is decided on the
+ * method definitions.
+ */
+export function resolveUiRoot(context: {
   origin?: string;
   request?: Request;
   endpoint?: string;

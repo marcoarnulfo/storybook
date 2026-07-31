@@ -8,15 +8,13 @@
 
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { getService } from 'storybook/internal/core-server';
-import {
-  OpenServiceModuleGraphUnavailableError,
-  OpenServiceToolsetOutputMismatchError,
-} from 'storybook/internal/server-errors';
+import { OpenServiceToolsetOutputMismatchError } from 'storybook/internal/server-errors';
 import {
   MCP_TOOL_NAMES,
   MCP_TOOL_TITLES,
   getToolset,
   resolveToolsetDescription,
+  type AnyToolsetDefinition,
   type AnyToolsetOutcome,
   type ToolsetCtx,
   type ToolsetMethod,
@@ -27,47 +25,43 @@ import type { McpServer } from 'tmcp';
 import { collectTelemetry } from '../telemetry.ts';
 import type { AddonContext } from '../types.ts';
 import { errorToMCPContent } from '../utils/errors.ts';
+import { resolveUiRoot } from './ui-root.ts';
 import type { StorybookAiToolCallResult } from './tool-registry.ts';
 
 type Server = McpServer<any, AddonContext>;
 type ToolEnabled = Parameters<Server['tool']>[0]['enabled'];
 
-/** Which toolset an MCP tool's telemetry is grouped under. */
-export type TelemetryToolset = 'dev' | 'test' | 'docs';
-
 export type ToolsetToolOptions = {
   /** Which toolset method backs this MCP tool. */
   method: ToolsetMethodRef;
-  /** Telemetry grouping for this tool's events. */
-  telemetryToolset: TelemetryToolset;
   /** Extra MCP-only tool metadata, e.g. the preview app resource. */
   extras?: Record<string, unknown>;
   /** Wraps the input schema before publishing it (used for friendlier validation errors). */
   wrapSchema?: (schema: StandardSchemaV1) => StandardSchemaV1;
   /**
-   * Origin to run the method against. Defaults to the addon's trusted origin; the review tool
-   * derives a request-relative root so a sub-path-hosted Storybook links to its own review page.
-   */
-  resolveOrigin?: (server: Server) => string | undefined;
-  /**
-   * Supplies the method instead of the registry.
+   * Supplies the toolset instead of the registry.
    *
    * A composition's docs tools read state that belongs to the request being served (its manifest
    * provider and composed sources), so their toolset is built per call rather than registered once
    * at boot. Called without a server when only static metadata is needed.
    */
-  resolveMethod?: (server?: Server) => ToolsetMethod<any, AnyToolsetOutcome>;
+  resolveToolset?: (server?: Server) => AnyToolsetDefinition;
 };
+
+function resolveToolset(options: ToolsetToolOptions, server?: Server): AnyToolsetDefinition {
+  if (options.resolveToolset) {
+    return options.resolveToolset(server);
+  }
+  const [toolsetId] = options.method.split('.');
+  return getToolset(toolsetId);
+}
 
 function resolveMethod(
   options: ToolsetToolOptions,
   server?: Server
 ): ToolsetMethod<any, AnyToolsetOutcome> {
-  if (options.resolveMethod) {
-    return options.resolveMethod(server);
-  }
-  const [toolsetId, methodName] = options.method.split('.');
-  return getToolset(toolsetId).methods[methodName];
+  const [, methodName] = options.method.split('.');
+  return resolveToolset(options, server).methods[methodName];
 }
 
 /**
@@ -90,11 +84,14 @@ async function toStructuredContent(
   return result.value as Record<string, unknown>;
 }
 
-function buildContext(server: Server, options: ToolsetToolOptions): ToolsetCtx {
+function buildContext(server: Server, toolset: AnyToolsetDefinition): ToolsetCtx {
   const custom = server.ctx.custom;
   return {
     consumer: 'mcp',
-    origin: options.resolveOrigin?.(server) ?? custom?.origin,
+    origin: custom?.origin,
+    // Derived generically for every method: where this request's Storybook UI is reachable, which
+    // differs from the origin for a sub-path-hosted dev server.
+    uiRoot: resolveUiRoot(custom ?? {}),
     getService: (serviceId, serviceOptions) => getService(serviceId as any, serviceOptions) as any,
     telemetry: custom?.disableTelemetry
       ? undefined
@@ -102,7 +99,7 @@ function buildContext(server: Server, options: ToolsetToolOptions): ToolsetCtx {
           await collectTelemetry({
             event,
             server,
-            toolset: options.telemetryToolset,
+            toolset: toolset.telemetryGroup,
             ...payload,
           });
         },
@@ -115,8 +112,10 @@ export async function callToolsetMethod(
   options: ToolsetToolOptions,
   input: unknown
 ): Promise<StorybookAiToolCallResult> {
-  const method = resolveMethod(options, server);
-  const ctx = buildContext(server, options);
+  const toolset = resolveToolset(options, server);
+  const [, methodName] = options.method.split('.');
+  const method: ToolsetMethod<any, AnyToolsetOutcome> = toolset.methods[methodName];
+  const ctx = buildContext(server, toolset);
 
   try {
     const outcome = await method.handler(input as never, ctx);
@@ -129,9 +128,10 @@ export async function callToolsetMethod(
       ...(outcome.ok ? {} : { isError: true }),
     };
   } catch (error) {
-    // This one is written for the agent that triggered the lookup and names its own recovery, so
-    // it is surfaced as-is instead of being wrapped as an unexpected failure.
-    if (error instanceof OpenServiceModuleGraphUnavailableError) {
+    // An agent-facing error's prose names its own recovery, so it is surfaced as-is instead of
+    // being wrapped as an unexpected failure. The trait is a property read, not a class list:
+    // it travels with the instance even across bundle copies.
+    if (error instanceof Error && (error as { agentFacing?: boolean }).agentFacing) {
       return { content: [{ type: 'text', text: error.message }], isError: true };
     }
     return errorToMCPContent(error);

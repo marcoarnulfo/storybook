@@ -25,6 +25,7 @@ function registerTestToolsetThrowing(error: Error) {
     defineToolset({
       id: 'test',
       description: 'stub',
+      telemetryGroup: 'test',
       methods: {
         run: {
           schema: v.object({}),
@@ -110,6 +111,7 @@ describe('run-story-tests over the registry', () => {
       defineToolset({
         id: 'test',
         description: 'stub',
+        telemetryGroup: 'test',
         methods: {
           run: {
             schema: v.object({}),

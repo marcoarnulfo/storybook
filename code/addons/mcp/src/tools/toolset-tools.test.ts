@@ -23,6 +23,7 @@ function registerStubStoriesToolset(
     defineToolset({
       id: 'stories',
       description: 'stub',
+      telemetryGroup: 'dev',
       methods: {
         preview: {
           schema: v.object({ id: v.string() }),
@@ -51,7 +52,7 @@ function makeServer(custom: Record<string, unknown> = {}) {
   } as any;
 }
 
-const previewOptions = { method: 'stories.preview', telemetryToolset: 'dev' } as const;
+const previewOptions = { method: 'stories.preview' } as const;
 
 describe('toolset-backed MCP tools', () => {
   beforeEach(() => {
@@ -126,6 +127,7 @@ describe('toolset-backed MCP tools', () => {
       defineToolset({
         id: 'stories',
         description: 'stub',
+        telemetryGroup: 'dev',
         methods: {
           changed: {
             schema: v.object({}),
@@ -136,11 +138,7 @@ describe('toolset-backed MCP tools', () => {
       }) as any
     );
 
-    const result = await callToolsetMethod(
-      makeServer(),
-      { method: 'stories.changed', telemetryToolset: 'dev' },
-      {}
-    );
+    const result = await callToolsetMethod(makeServer(), { method: 'stories.changed' }, {});
 
     expect(result.content).toEqual([{ type: 'text', text: 'no changes' }]);
     expect(result.structuredContent).toBeUndefined();
@@ -175,6 +173,24 @@ describe('toolset-backed MCP tools', () => {
     expect(result.content[0].text).toBe(
       "Storybook's story module graph hasn't built yet — it is still being constructed."
     );
+  });
+
+  it('selects verbatim surfacing by the agentFacing trait, not an adapter class list', async () => {
+    // Any error instance carrying the trait qualifies — including one from a different bundle
+    // copy of a class, which is exactly when an instanceof list would misclassify it.
+    const traitError = Object.assign(new Error('Do X, then retry the tool.'), {
+      agentFacing: true,
+    });
+    registerStubStoriesToolset({
+      handler: () => {
+        throw traitError;
+      },
+    });
+
+    const result = await callToolsetMethod(makeServer(), previewOptions, { id: 'x' });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toBe('Do X, then retry the tool.');
   });
 
   it('wraps every other failure as an error result', async () => {
@@ -214,17 +230,20 @@ describe('toolset-backed MCP tools', () => {
     expect(collectTelemetry).not.toHaveBeenCalled();
   });
 
-  it('lets a tool override the origin the method runs against', async () => {
-    registerStubStoriesToolset();
+  it('derives the uiRoot fact from the request path for every method', async () => {
+    registerStubStoriesToolset({
+      handler: async (_input, ctx) => ({ ok: true, data: { stories: [] }, markdown: ctx.uiRoot }),
+    });
 
     const result = await callToolsetMethod(
-      makeServer(),
-      { ...previewOptions, resolveOrigin: () => 'http://localhost:6006/nested' },
+      makeServer({
+        endpoint: '/mcp',
+        request: new Request('http://localhost:6006/nested/mcp', { method: 'POST' }),
+      }),
+      previewOptions,
       { id: 'button--primary' }
     );
 
-    expect(result.content[0].text).toBe(
-      'http://localhost:6006/nested/?path=/story/button--primary'
-    );
+    expect(result.content[0].text).toBe('http://localhost:6006/nested');
   });
 });

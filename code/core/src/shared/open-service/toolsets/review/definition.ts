@@ -137,6 +137,7 @@ Two things you must do now, both of them:
 export const reviewToolset = defineToolset({
   id: 'review',
   description: 'Create a curated Storybook review.',
+  telemetryGroup: 'dev',
   methods: {
     create: {
       schema: reviewCreateInputSchema,
@@ -176,8 +177,12 @@ export const reviewToolset = defineToolset({
           changedFileCount: review.changedFiles.length,
         });
 
+        // The review page lives under the consumer's UI root, which differs from the origin for a
+        // sub-path-hosted Storybook. Preferring `uiRoot` here is the method's choice, not adapter
+        // wiring.
+        const uiRoot = ctx.uiRoot ?? ctx.origin;
         const data: ReviewCreateOutput = {
-          reviewUrl: `${ctx.origin.replace(/\/$/, '')}/?path=${REVIEW_PAGE_PATH}`,
+          reviewUrl: `${uiRoot.replace(/\/$/, '')}/?path=${REVIEW_PAGE_PATH}`,
           collectionCount,
           storyCount,
         };

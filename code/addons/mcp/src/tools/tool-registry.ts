@@ -20,7 +20,6 @@ import {
 // `instanceof` would silently fail.
 import { MCP_TOOL_NAMES, OpenServiceMissingToolsetError } from 'storybook/open-service';
 import { GET_UI_BUILDING_INSTRUCTIONS_TOOL_NAME } from './tool-names.ts';
-import { resolveReviewOrigin } from './review-origin.ts';
 import {
   getToolsetToolMetadata,
   registerToolsetTool,
@@ -122,25 +121,6 @@ function fromToolset(
 }
 
 /**
- * The docs rows carry no telemetry of their own: the events live on the toolset's methods, so the
- * CLI reports them too.
- */
-const docsListOptions: ToolsetToolOptions = {
-  method: 'docs.list',
-  telemetryToolset: 'docs',
-};
-
-const docsShowOptions: ToolsetToolOptions = {
-  method: 'docs.show',
-  telemetryToolset: 'docs',
-};
-
-const docsShowStoryOptions: ToolsetToolOptions = {
-  method: 'docs.showStory',
-  telemetryToolset: 'docs',
-};
-
-/**
  * Builds the docs toolset for a composition.
  *
  * The composed sources, their manifest provider and the local source's own access all arrive with
@@ -160,18 +140,11 @@ function compositionDocsToolset(server?: McpServer<any, AddonContext>): DocsTool
 }
 
 /** The docs rows, in the two shapes the registry needs: registered toolset, or per-request one. */
-function docsRow(
-  method: 'docs.list' | 'docs.show' | 'docs.showStory',
-  options: ToolsetToolOptions
-): AddonToolDefinition {
-  const methodName = method.split('.')[1] as 'list' | 'show' | 'showStory';
+function docsRow(method: 'docs.list' | 'docs.show' | 'docs.showStory'): AddonToolDefinition {
   const forContext = (context: AddonToolRegistryContext): ToolsetToolOptions =>
     context.multiSource
-      ? {
-          ...options,
-          resolveMethod: (server) => compositionDocsToolset(server).methods[methodName],
-        }
-      : options;
+      ? { method, resolveToolset: (server) => compositionDocsToolset(server) }
+      : { method };
 
   return {
     name: MCP_TOOL_NAMES[method],
@@ -185,9 +158,9 @@ function docsRow(
 }
 
 const docsToolDefinitions: AddonToolDefinition[] = [
-  docsRow('docs.list', docsListOptions),
-  docsRow('docs.show', docsShowOptions),
-  docsRow('docs.showStory', docsShowStoryOptions),
+  docsRow('docs.list'),
+  docsRow('docs.show'),
+  docsRow('docs.showStory'),
 ];
 
 const addonToolDefinitions: AddonToolDefinition[] = [
@@ -195,7 +168,6 @@ const addonToolDefinitions: AddonToolDefinition[] = [
     toolset: 'dev',
     options: {
       method: 'stories.preview',
-      telemetryToolset: 'dev',
       extras: { _meta: { ui: { resourceUri: PREVIEW_STORIES_RESOURCE_URI } } },
     },
   }),
@@ -230,12 +202,12 @@ const addonToolDefinitions: AddonToolDefinition[] = [
   fromToolset({
     toolset: 'dev',
     available: ({ availability }) => availability.changeDetectionEnabled,
-    options: { method: 'stories.changed', telemetryToolset: 'dev' },
+    options: { method: 'stories.changed' },
   }),
   fromToolset({
     toolset: 'dev',
     available: ({ availability }) => availability.moduleGraphSupported,
-    options: { method: 'stories.findByComponent', telemetryToolset: 'dev' },
+    options: { method: 'stories.findByComponent' },
   }),
   fromToolset({
     toolset: 'dev',
@@ -250,18 +222,13 @@ const addonToolDefinitions: AddonToolDefinition[] = [
         (server.ctx.custom?.reviewEnabled ?? availability.reviewEnabled),
     options: {
       method: 'review.create',
-      telemetryToolset: 'dev',
       wrapSchema: withFriendlyErrors,
-      resolveOrigin: (server) => resolveReviewOrigin(server.ctx.custom ?? {}),
     },
   }),
   fromToolset({
     toolset: 'test',
     available: ({ availability }) => availability.testSupported,
-    options: {
-      method: 'test.run',
-      telemetryToolset: 'test',
-    },
+    options: { method: 'test.run' },
   }),
   // Docs run on the core docs toolset in both modes. A composition builds its toolset per request,
   // because the sources it reads and the provider that fetches them belong to the request.

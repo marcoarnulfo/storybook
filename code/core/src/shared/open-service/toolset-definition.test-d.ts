@@ -11,6 +11,7 @@ import {
 const exampleToolset = defineToolset({
   id: 'example',
   description: 'Example API',
+  telemetryGroup: 'dev',
   methods: {
     greet: {
       description: 'Greets a person.',
@@ -27,6 +28,7 @@ const exampleToolset = defineToolset({
 const reviewToolset = defineToolset({
   id: 'review',
   description: 'Create a review',
+  telemetryGroup: 'dev',
   methods: {
     create: {
       description: (ctx) => `Create a review (${ctx.consumer})`,

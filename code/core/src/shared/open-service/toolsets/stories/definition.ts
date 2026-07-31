@@ -199,6 +199,7 @@ export function createStoriesToolset({
   return defineToolset({
     id: 'stories',
     description: 'Story discovery, change detection, and preview URL generation.',
+    telemetryGroup: 'dev',
     methods: {
       preview: {
         schema: v.object({
