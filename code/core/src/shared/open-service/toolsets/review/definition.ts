@@ -2,6 +2,7 @@ import * as v from 'valibot';
 
 import {
   OpenServiceMissingOriginError,
+  describeUnknownStoryIds,
   OpenServiceUnknownStoryIdsError,
 } from '../../../../server-errors.ts';
 import { defineToolset, type ToolsetCtx } from '../../toolset-definition.ts';
@@ -109,8 +110,7 @@ Exactly what the user asked for — **no more, no less**. Group logically or fol
 function formatUnknownStoryIdsError(unknownIds: string[], ctx: ToolsetCtx): string {
   const ref = getRef(ctx);
   const list = unknownIds.map((id) => `- \`${id}\``).join('\n');
-  const plural = unknownIds.length === 1 ? 'ID is' : 'IDs are';
-  return `Refusing to publish review: ${unknownIds.length} story ${plural} not in the live Storybook index:\n${list}\n\nThis usually means the IDs were inferred from file paths or naming conventions rather than returned by a tool. Resolve real IDs by calling \`${ref('stories.findByComponent')}\` (for components you've edited or want covered) or \`${ref('docs.list')}\` (to browse the index), then retry \`${ref('review.create')}\` with the verified IDs. Do not invent IDs to satisfy this check.`;
+  return `${describeUnknownStoryIds(unknownIds)}\n${list}\n\nThis usually means the IDs were inferred from file paths or naming conventions rather than returned by a tool. Resolve real IDs by calling \`${ref('stories.findByComponent')}\` (for components you've edited or want covered) or \`${ref('docs.list')}\` (to browse the index), then retry \`${ref('review.create')}\` with the verified IDs. Do not invent IDs to satisfy this check.`;
 }
 
 export const reviewToolset = defineToolset({

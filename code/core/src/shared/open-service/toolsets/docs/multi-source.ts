@@ -6,8 +6,8 @@
  * parallel implementation: whatever backs a single Storybook (manifests over HTTP, the open
  * services in-process) backs one source of a composition unchanged.
  *
- * The two things composition does add are per-source failure isolation when listing, and routing a
- * lookup to the source the caller named.
+ * What composition does add is per-source failure isolation when listing; routing a lookup to the
+ * source the caller named is the toolset's job, since only it knows how to explain a bad id.
  */
 
 import { createProviderDocsAccess, type ManifestProvider } from './access-provider.ts';
@@ -101,13 +101,4 @@ export async function listSources(
   }
 
   return listings;
-}
-
-/** Resolves an id against one named source. */
-export async function resolveInSource(
-  sources: DocsSource[],
-  storybookId: string,
-  id: string
-): Promise<ResolvedDocsEntry | undefined> {
-  return sources.find((candidate) => candidate.source.id === storybookId)?.access.resolve(id);
 }

@@ -12,7 +12,7 @@ import {
   MAX_STORIES_TO_SHOW,
 } from './manifest-formatter/markdown.ts';
 import type { AllManifests } from './manifest-formatter/manifest-types.ts';
-import { listSources, resolveInSource, type DocsSource } from './multi-source.ts';
+import { listSources, type DocsSource } from './multi-source.ts';
 import type { SourceListing } from './sources.ts';
 import { estimateTokens } from '../estimate-tokens.ts';
 
@@ -58,6 +58,20 @@ export type DocsShowStoryOutput = {
   storybookId?: string;
   sourceError?: string;
 };
+
+/**
+ * The manifests a listing should be reported against.
+ *
+ * Reporting predates composition and describes one Storybook, so a composed listing is reported
+ * against the first source that produced one. Nothing is returned when no source did — a listing of
+ * nothing but errors is not a usage signal.
+ */
+export function selectReportedManifests({
+  manifests,
+  sources,
+}: DocsListOutput): AllManifests | undefined {
+  return manifests ?? sources?.find((listing) => listing.manifests)?.manifests;
+}
 
 /** Whether `docs.show` failed: an unusable source, or an id that resolved to nothing. */
 export function isDocsShowError({ entry, sourceError }: DocsShowOutput): boolean {
@@ -194,11 +208,8 @@ export function createDocsToolset(options: CreateDocsToolsetOptions) {
             ? formatMultiSourceManifestsToLists(listings, { withStoryIds })
             : formatManifestsToLists(manifests!, { withStoryIds }),
         reportUsage: async ({ data, text }, ctx) => {
-          const { manifests, sources: listings } = data as DocsListOutput;
-          // In a composition the counts describe the first source that produced a listing, and
-          // nothing is reported when none did — a listing of nothing but errors is not a usage
-          // signal. Single-source runs have no listings array and report their own manifests.
-          const counted = manifests ?? listings?.find((listing) => listing.manifests)?.manifests;
+          const listing = data as DocsListOutput;
+          const counted = selectReportedManifests(listing);
           if (!counted) {
             return;
           }
@@ -207,7 +218,7 @@ export function createDocsToolset(options: CreateDocsToolsetOptions) {
             componentCount: Object.keys(counted.componentManifest.components).length,
             docsCount: Object.keys(counted.docsManifest?.docs ?? {}).length,
             resultTokenCount: estimateTokens(text),
-            sourceCount: listings?.length,
+            sourceCount: listing.sources?.length,
           });
         },
       },

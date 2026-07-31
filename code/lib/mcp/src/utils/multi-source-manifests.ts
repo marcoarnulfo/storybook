@@ -11,9 +11,27 @@ import {
   listSources,
   type ManifestProvider,
   type Source,
+  type SourceListing,
 } from 'storybook/internal/toolsets-docs';
 
 import type { SourceManifests } from '../types.ts';
+
+/**
+ * Flattens a source listing into this package's published shape.
+ *
+ * The toolset nests a source's manifests under `manifests`; every consumer of this package reads
+ * `componentManifest` and `docsManifest` directly off the source, and that is contractual.
+ */
+export function toSourceManifests(listing: SourceListing): SourceManifests {
+  const { source, manifests, error, notice } = listing;
+  return {
+    source,
+    componentManifest: manifests?.componentManifest ?? { v: 1 as const, components: {} },
+    ...(manifests?.docsManifest ? { docsManifest: manifests.docsManifest } : {}),
+    ...(error ? { error } : {}),
+    ...(notice ? { notice } : {}),
+  };
+}
 
 /**
  * Fetches every source's manifests, capturing a failure as that source's own outcome rather than
@@ -29,11 +47,5 @@ export async function getMultiSourceManifests(
     { withStoryIds: false }
   );
 
-  return listings.map(({ source, manifests, error, notice }) => ({
-    source,
-    componentManifest: manifests?.componentManifest ?? { v: 1 as const, components: {} },
-    ...(manifests?.docsManifest ? { docsManifest: manifests.docsManifest } : {}),
-    ...(error ? { error } : {}),
-    ...(notice ? { notice } : {}),
-  }));
+  return listings.map(toSourceManifests);
 }

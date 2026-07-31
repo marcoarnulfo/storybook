@@ -8,7 +8,7 @@ import {
 } from '../../../../server-errors.ts';
 import type { ModuleGraphService } from '../../services/module-graph/definition.ts';
 import { defineToolset, type ToolsetCtx } from '../../toolset-definition.ts';
-import { getRef } from '../../toolset-names.ts';
+import { getRef, MCP_TOOL_NAMES } from '../../toolset-names.ts';
 import type { StatusesByStoryIdAndTypeId } from '../../../status-store/index.ts';
 import { getChangedStories } from './changed.ts';
 import { DEFAULT_MAX_DISTANCE, findStoriesByComponent } from './find-by-component.ts';
@@ -24,7 +24,9 @@ const previewSuccessSchema = v.object({
   previewUrl: v.pipe(
     v.string(),
     v.description(
-      'Direct URL to open the story preview. Include this URL in the final user-facing response so users can open it directly — unless a curated review page is being published via display-review, in which case link the review page instead of listing individual URLs.'
+      // An `outputSchema` is built once per toolset, with no `ctx` to resolve a sibling tool's
+      // spelling against, so this names the frozen MCP tool rather than a hardcoded string.
+      `Direct URL to open the story preview. Include this URL in the final user-facing response so users can open it directly — unless a curated review page is being published via ${MCP_TOOL_NAMES['review.create']}, in which case link the review page instead of listing individual URLs.`
     )
   ),
 });

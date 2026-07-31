@@ -107,7 +107,7 @@ describe('review.create', () => {
 
       expect(error).not.toBeInstanceOf(OpenServiceUnknownStoryIdsError);
       expect((error as Error).message)
-        .toBe(`Refusing to publish review: 2 story IDs are not in the live Storybook index:
+        .toBe(`Refusing to publish review: 2 story IDs are not backed by a story entry in the live Storybook index (docs entries cannot be review slots):
 - \`button--ghost\`
 - \`card--imagined\`
 
@@ -129,7 +129,7 @@ This usually means the IDs were inferred from file paths or naming conventions r
       const error = await createReview().catch((reason: unknown) => reason);
 
       expect((error as Error).message).toContain(
-        'Refusing to publish review: 1 story ID is not in the live Storybook index'
+        'Refusing to publish review: 1 story ID is not backed by a story entry in the live Storybook index (docs entries cannot be review slots)'
       );
     });
   });

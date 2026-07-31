@@ -16,10 +16,12 @@ import {
   createProviderDocsAccess,
   emptyManifests,
   isDocsShowError,
+  selectReportedManifests,
   isDocsShowStoryError,
   MCP_TOOL_NAMES,
   MCP_TOOL_TITLES,
   resolveToolsetDescription,
+  type DocsListOutput,
   type DocsSource,
   type DocsToolset,
   type ToolsetCtx,
@@ -27,6 +29,7 @@ import {
 
 import type { StorybookContext } from '../types.ts';
 import { errorToMCPContent } from '../utils/error-to-mcp-content.ts';
+import { toSourceManifests } from '../utils/multi-source-manifests.ts';
 
 export const LIST_TOOL_NAME = MCP_TOOL_NAMES['docs.list'];
 export const GET_TOOL_NAME = MCP_TOOL_NAMES['docs.show'];
@@ -166,6 +169,15 @@ async function call<TMethod extends 'list' | 'show' | 'showStory'>(
       ctx
     );
     const text = (definition.format as (d: unknown, c: ToolsetCtx) => string)(data, ctx);
+    // The toolset owns its usage events; an adapter that skips this silently stops reporting them.
+    await (
+      definition as {
+        reportUsage?: (
+          result: { input: unknown; data: unknown; text: string },
+          context: ToolsetCtx
+        ) => Promise<void> | void;
+      }
+    ).reportUsage?.({ input, data, text }, ctx);
 
     return {
       data,
@@ -190,16 +202,16 @@ export async function addListAllDocumentationTool(
       const context = server.ctx.custom;
       const { data, result } = await call(server, 'list', input);
 
-      // The embedder's telemetry hook predates the toolset and reports one source's manifests.
-      const listing = data as { manifests?: any; sources?: any[] } | undefined;
-      const manifests =
-        listing?.manifests ?? listing?.sources?.find((entry) => entry.manifests)?.manifests;
+      // The embedder's hook predates the toolset and reports one source's manifests, so it picks
+      // the same source the toolset's own usage event does.
+      const listing = data as DocsListOutput | undefined;
+      const manifests = listing && selectReportedManifests(listing);
       if (manifests) {
         await context?.onListAllDocumentation?.({
           context: context!,
           manifests,
           resultText: result.content[0].text,
-          ...(listing?.sources ? { sources: listing.sources } : {}),
+          ...(listing?.sources ? { sources: listing.sources.map(toSourceManifests) } : {}),
         });
       }
 
