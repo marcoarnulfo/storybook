@@ -20,6 +20,26 @@ vi.mock('storybook/internal/node-logger', () => ({
   logger: { error: loggerError, warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
+/** Registers a stub `test` toolset whose metadata resolution throws the given error. */
+function registerTestToolsetThrowing(error: Error) {
+  registerToolset(
+    defineToolset({
+      id: 'test',
+      description: 'stub',
+      methods: {
+        run: {
+          schema: v.object({}),
+          description: () => {
+            throw error;
+          },
+          handler: async () => ({}),
+          format: () => '',
+        },
+      },
+    }) as any
+  );
+}
+
 function makeServer() {
   const tools = new Map<string, (input: unknown) => Promise<any>>();
   const server = {
@@ -71,22 +91,7 @@ describe('a broken tool row', () => {
     // carries the same StorybookError name.
     const crossCopy = new Error('No registered toolset with id "test" exists.');
     crossCopy.name = new OpenServiceMissingToolsetError({ toolsetId: 'test' }).name;
-    registerToolset(
-      defineToolset({
-        id: 'test',
-        description: 'stub',
-        methods: {
-          run: {
-            schema: v.object({}),
-            description: () => {
-              throw crossCopy;
-            },
-            handler: async () => ({}),
-            format: () => '',
-          },
-        },
-      }) as any
-    );
+    registerTestToolsetThrowing(crossCopy);
 
     const names = getAddonToolMetadata(context).map((tool) => tool.name);
 
@@ -97,43 +102,13 @@ describe('a broken tool row', () => {
   it('rethrows a near-match that merely contains the error name', () => {
     const nearMatch = new Error('boom');
     nearMatch.name = 'NotOpenServiceMissingToolsetError (impostor)';
-    registerToolset(
-      defineToolset({
-        id: 'test',
-        description: 'stub',
-        methods: {
-          run: {
-            schema: v.object({}),
-            description: () => {
-              throw nearMatch;
-            },
-            handler: async () => ({}),
-            format: () => '',
-          },
-        },
-      }) as any
-    );
+    registerTestToolsetThrowing(nearMatch);
 
     expect(() => getAddonToolMetadata(context)).toThrow('boom');
   });
 
   it('contains only the missing-toolset case: any other adapter failure still fails fast', () => {
-    registerToolset(
-      defineToolset({
-        id: 'test',
-        description: 'stub',
-        methods: {
-          run: {
-            schema: v.object({}),
-            description: () => {
-              throw new Error('broken description');
-            },
-            handler: async () => ({}),
-            format: () => '',
-          },
-        },
-      }) as any
-    );
+    registerTestToolsetThrowing(new Error('broken description'));
 
     expect(() => getAddonToolMetadata(context)).toThrow('broken description');
   });
