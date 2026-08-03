@@ -1,20 +1,23 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Options } from 'storybook/internal/types';
 
+import { vueComponentMeta } from './plugins/vue-component-meta.ts';
+import { vueDocgen } from './plugins/vue-docgen.ts';
+import { templateCompilation } from './plugins/vue-template.ts';
 import type { FrameworkOptions } from './types.ts';
 
 // The real plugin factories build a vue-component-meta checker / vue-docgen-api parser, which is
 // far too heavy for a preset test. Identify them by name instead.
-vi.mock('./plugins/vue-template.ts', () => ({
-  templateCompilation: async () => ({ name: 'template' }),
-}));
-vi.mock('./plugins/vue-component-meta.ts', () => ({
-  vueComponentMeta: async () => ({ name: 'vue-component-meta' }),
-}));
-vi.mock('./plugins/vue-docgen.ts', () => ({
-  vueDocgen: async () => ({ name: 'vue-docgen-api' }),
-}));
+vi.mock('./plugins/vue-template.ts', { spy: true });
+vi.mock('./plugins/vue-component-meta.ts', { spy: true });
+vi.mock('./plugins/vue-docgen.ts', { spy: true });
+
+beforeEach(() => {
+  vi.mocked(templateCompilation).mockResolvedValue({ name: 'template' });
+  vi.mocked(vueComponentMeta).mockResolvedValue({ name: 'vue-component-meta' });
+  vi.mocked(vueDocgen).mockResolvedValue({ name: 'vue-docgen-api' });
+});
 
 const optionsWith = (docgen: FrameworkOptions['docgen'], features: Record<string, boolean> = {}) =>
   ({
