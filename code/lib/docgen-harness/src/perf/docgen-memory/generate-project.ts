@@ -3,21 +3,27 @@
  *
  * Produces N component files (each with a non-trivial props interface that extends React DOM types,
  * so TypeScript type resolution has realistic cost) plus a co-located `.stories.tsx` with M variants.
- * Used by both the in-process memory harness (`memory-harness.ts`) and — at larger scale — as a real
+ * Used by both the in-process memory harness (`memory-harness.ts`) and - at larger scale - as a real
  * buildable/deployable Storybook for the "+5K components" benchmark from
  * https://github.com/storybookjs/storybook/issues/34824.
  *
  * The `--heavy` lever (optionally scaled with `--heavy-factor N`) grows the TypeScript checker
  * working set by emitting inline literal-union props that `serializeType` expands into retained enum
- * arrays — the density that lets the in-process harness actually OOM.
+ * arrays - the density that lets the in-process harness actually OOM.
  *
- * Run directly:
- *   node --import jiti/register scripts/bench/docgen-memory/generate-project.ts --out ../storybook-sandboxes/docgen-stress --components 5000 --variants 5
+ * Run directly, from code/lib/docgen-harness (--out defaults into the sandbox directory):
+ *   node --import jiti/register src/perf/docgen-memory/generate-project.ts --components 5000 --variants 5
  */
 import { createRequire } from 'node:module';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
+
+import { z } from 'zod';
+
+import { countOption, parseHarnessOptions, positiveCountOption } from '../docgen-shared/args.ts';
+import { SANDBOX_DIRECTORY } from '../docgen-shared/paths.ts';
+import type { ComponentRefLike, StoryRefLike } from '../docgen-shared/react-renderer-module.ts';
 
 const require = createRequire(import.meta.url);
 
@@ -32,7 +38,7 @@ export interface GenerateOptions {
   props: number;
   /**
    * Inflate the *type-resolution* cost per component with large constructed types (big unions,
-   * mapped types, deep nesting, generics) — the lever that actually grows the TypeScript checker
+   * mapped types, deep nesting, generics) - the lever that actually grows the TypeScript checker
    * working set, mirroring complex real-world component libraries.
    */
   heavyTypes: boolean;
@@ -143,10 +149,10 @@ function propLines(componentIndex: number, extraProps: number): string {
  *
  *   - Transient resolution: a big token union + a mapped type over it + a deeply nested generic.
  *     These inflate the per-save type-checking spike but are emitted as type *aliases*, so
- *     `serializeType` only prints their name — they are not deeply retained on the doc.
+ *     `serializeType` only prints their name - they are not deeply retained on the doc.
  *   - Retained working set: `inline literal-union` props whose members are unique per component and
  *     per prop. `serializeType` expands these into `enum` value arrays stored on the emitted doc, so
- *     they stay resident for the life of the program — mirroring real libraries whose warm working
+ *     they stay resident for the life of the program - mirroring real libraries whose warm working
  *     set sits permanently near the heap cap.
  */
 function heavyTypeBlock(i: number, factor: number): { typeDefs: string; propLines: string } {
@@ -157,10 +163,7 @@ function heavyTypeBlock(i: number, factor: number): { typeDefs: string; propLine
   // Inline literal-union props: unique members per (component, prop) so the checker and the emitted
   // doc cannot dedupe them across components. These are the dominant retained-memory lever.
   const enumLines = Array.from({ length: enumProps }, (_, k) => {
-    const members = Array.from(
-      { length: tokenCount },
-      (_, t) => `'c${i}_p${k}_v${t}'`
-    ).join(' | ');
+    const members = Array.from({ length: tokenCount }, (_, t) => `'c${i}_p${k}_v${t}'`).join(' | ');
     return `  /** Inline literal union ${k}. */
   enum${k}?: ${members};`;
   }).join('\n');
@@ -198,9 +201,7 @@ export function componentSource(
   extraProps: number,
   opts: { heavyTypes?: boolean; heavyFactor?: number; base64Kb?: number } = {}
 ): string {
-  const heavy = opts.heavyTypes
-    ? heavyTypeBlock(i, Math.max(1, opts.heavyFactor ?? 1))
-    : undefined;
+  const heavy = opts.heavyTypes ? heavyTypeBlock(i, opts.heavyFactor ?? 1) : undefined;
   const base64 = opts.base64Kb ? base64Block(i, opts.base64Kb) : '';
   return `import * as React from 'react';
 
@@ -209,7 +210,7 @@ ${propLines(i, extraProps)}${heavy ? `\n${heavy.propLines}` : ''}
 }
 
 /**
- * Comp${i} — generated stress-test component.
+ * Comp${i} - generated stress-test component.
  */
 export const Comp${i} = ({ label, ...rest }: Comp${i}Props) => {
   return <div {...rest}>{label}</div>;
@@ -237,6 +238,26 @@ export default meta;
 
 ${variantExports}
 `;
+}
+
+/** The renderer-side reference for the generated `Comp{i}`, matching the naming used above. */
+export function componentRef(i: number, componentPath: string): ComponentRefLike {
+  return {
+    componentName: `Comp${i}`,
+    importName: `Comp${i}`,
+    localImportName: `Comp${i}`,
+    importId: `./Comp${i}`,
+    isPackage: false,
+    path: componentPath,
+  };
+}
+
+/** Pairs {@link GeneratedProject.componentPaths} with `storyPaths`, which share an index. */
+export function buildStoryRefs(componentPaths: string[], storyPaths: string[]): StoryRefLike[] {
+  return componentPaths.map((componentPath, i) => ({
+    storyPath: storyPaths[i],
+    component: componentRef(i, componentPath),
+  }));
 }
 
 export function generateProject(options: GenerateOptions): GeneratedProject {
@@ -275,25 +296,40 @@ export function generateProject(options: GenerateOptions): GeneratedProject {
   return { outDir, configPath, componentPaths, storyPaths };
 }
 
-function parseArgs(argv: string[]): GenerateOptions {
-  const get = (flag: string, fallback: string) => {
-    const idx = argv.indexOf(flag);
-    return idx >= 0 && argv[idx + 1] ? argv[idx + 1] : fallback;
-  };
-  return {
-    outDir: get('--out', '../storybook-sandboxes/docgen-memory-stress'),
-    components: Number(get('--components', '500')),
-    variants: Number(get('--variants', '4')),
-    props: Number(get('--props', '8')),
-    heavyTypes: argv.includes('--heavy'),
-    heavyFactor: Number(get('--heavy-factor', '1')),
-    base64Kb: Number(get('--base64-kb', '0')),
-    withNodeModules: !argv.includes('--no-node-modules'),
-  };
+function parseOptions(argv: string[]): GenerateOptions {
+  return parseHarnessOptions<GenerateOptions>(
+    argv,
+    {
+      out: { type: 'string' },
+      components: { type: 'string' },
+      variants: { type: 'string' },
+      props: { type: 'string' },
+      heavy: { type: 'boolean' },
+      'heavy-factor': { type: 'string' },
+      'base64-kb': { type: 'string' },
+      'no-node-modules': { type: 'boolean' },
+    } as const,
+    z.object({
+      outDir: z.string().default(path.join(SANDBOX_DIRECTORY, 'docgen-memory-stress')),
+      components: countOption(500),
+      variants: countOption(4),
+      props: countOption(8),
+      heavyTypes: z.boolean().default(false),
+      heavyFactor: positiveCountOption(1),
+      base64Kb: countOption(0),
+      withNodeModules: z.boolean().default(true),
+    }),
+    (values) => ({
+      ...values,
+      outDir: values.out,
+      heavyTypes: values.heavy,
+      withNodeModules: !values.noNodeModules,
+    })
+  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const options = parseArgs(process.argv.slice(2));
+  const options = parseOptions(process.argv.slice(2));
   const start = Date.now();
   const result = generateProject(options);
   console.log(
