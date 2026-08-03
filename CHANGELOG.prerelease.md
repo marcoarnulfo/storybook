@@ -1,3 +1,7 @@
+## 10.6.0-alpha.5
+
+- Core: Extract ComponentMetaManager to Core - [#35657](https://github.com/storybookjs/storybook/pull/35657), thanks @huang-julien!
+
 ## 10.6.0-alpha.4
 
 - Addon-Pseudo-States: Fix pseudo-states rewriting for nested functional selectors - [#34318](https://github.com/storybookjs/storybook/pull/34318), thanks @filipw01!
